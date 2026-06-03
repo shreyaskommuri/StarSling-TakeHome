@@ -258,17 +258,23 @@ export async function runAttempt(
 
       if (state.nextRequiredMove === "SUBMIT_SHOT" || (state.nextRequiredMove as unknown as string) === "submit_shot") {
         const learnedHits = getLearnedHits(currentOpponentId);
+
+        // Use currentMoves (shots WE fired this game, ground truth) rather than
+        // state.yourShots from the server — the server may return shots in a
+        // different order or include unexpected entries that pollute activeHits.
         const decision = strategy.pickShot({
-          yourShots: state.yourShots,
+          yourShots: currentMoves.map((m) => ({ row: m.row, col: m.col, outcome: m.outcome })),
           opponentShips: state.opponentShips,
           learnedHits,
         });
 
         state = await submitShot(agent, agentId, decision.row, decision.col);
 
-        // The shot outcome is in the updated state's yourShots (last entry).
-        const lastShot = state.yourShots[state.yourShots.length - 1];
-        const outcome = lastShot?.outcome ?? "MISS";
+        // Find the outcome for this specific shot by matching row/col — avoids
+        // assuming any particular ordering of state.yourShots (server may return
+        // shots newest-first or in an arbitrary order).
+        const fired = state.yourShots.find((s) => s.row === decision.row && s.col === decision.col);
+        const outcome = fired?.outcome ?? "MISS";
 
         const move = buildMoveMetric(decision.row, decision.col, outcome, decision.mode, decision.meta);
         currentMoves.push(move);
