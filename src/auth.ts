@@ -22,7 +22,9 @@
 import { AgentAuthClient, KVStorage, KVStore } from "@auth/agent";
 import * as fs from "fs";
 import * as path from "path";
+import { fileURLToPath } from "url";
 
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const AGENT_FILE = path.resolve(__dirname, "../data/agent.json");
 const SERVER = "https://intern-battleship-game-server.vercel.app";
 
@@ -59,7 +61,7 @@ export async function initAuth(): Promise<{ agent: AgentAuthClient; agentId: str
     async del(key: string) { delete store[key]; saveStore(store); },
   };
   const storage = new KVStorage(kv);
-  const agent = new AgentAuthClient({ storage });
+  const agent = new AgentAuthClient({ storage, allowDirectDiscovery: true });
 
   let agentId = store["agentId"];
 

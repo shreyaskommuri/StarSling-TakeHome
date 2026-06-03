@@ -16,8 +16,10 @@
  */
 import * as fs from "fs";
 import * as path from "path";
-import { GameRecord } from "./types";
+import { fileURLToPath } from "url";
+import { GameRecord } from "./types.js";
 
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const HISTORY_FILE = path.resolve(__dirname, "../data/history.json");
 
 function loadHistory(): GameRecord[] {

@@ -1,2 +1,2 @@
-export { BaselineStrategy } from "./baseline";
-export { ProbabilityStrategy } from "./probability";
+export { BaselineStrategy } from "./baseline.js";
+export { ProbabilityStrategy } from "./probability.js";

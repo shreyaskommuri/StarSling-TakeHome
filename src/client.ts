@@ -17,8 +17,8 @@
  *   ATTEMPT_DISQUALIFIED → HTTP 200 (check responseType, not HTTP status!)
  */
 import { AgentAuthClient } from "@auth/agent";
-import { mintToken } from "./auth";
-import { CompetitionRules, GameStateEnvelope, ShipPlacement } from "./types";
+import { mintToken } from "./auth.js";
+import { CompetitionRules, GameStateEnvelope, ShipPlacement } from "./types.js";
 
 const SERVER = "https://intern-battleship-game-server.vercel.app";
 const COMP_ID = "OMITTED_COMPETITION_ID";

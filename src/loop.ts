@@ -26,18 +26,18 @@
  *   - All events written to data/logs/{runId}.jsonl for offline analysis.
  */
 import { AgentAuthClient } from "@auth/agent";
-import { createAttempt, placeShips, submitShot, getCurrentAttempt } from "./client";
-import { generatePlacements, validatePlacements } from "./placement";
-import { appendGameRecord, getLearnedHits } from "./learning";
-import { Logger } from "./logger";
+import { createAttempt, placeShips, submitShot, getCurrentAttempt } from "./client.js";
+import { generatePlacements, validatePlacements } from "./placement.js";
+import { appendGameRecord, getLearnedHits } from "./learning.js";
+import { Logger } from "./logger.js";
 import {
   buildMoveMetric,
   buildGameMetric,
   saveAttemptMetric,
   summarizeGames,
   printAttemptSummary,
-} from "./metrics";
-import { ITargetingStrategy, GameStateEnvelope, GameMetric, MoveMetric } from "./types";
+} from "./metrics.js";
+import { ITargetingStrategy, GameStateEnvelope, GameMetric, MoveMetric } from "./types.js";
 
 export async function runAttempt(
   agent: AgentAuthClient,

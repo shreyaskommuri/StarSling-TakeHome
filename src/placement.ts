@@ -11,7 +11,7 @@
  * Strategy: randomize every game to prevent opponents from learning our layout.
  * Validated locally before submission — illegal fleet = ATTEMPT_DISQUALIFIED (HTTP 200).
  */
-import { ShipClass, ShipPlacement, Orientation } from "./types";
+import { ShipClass, ShipPlacement, Orientation } from "./types.js";
 
 const SHIP_LENGTHS: Record<ShipClass, number> = {
   CARRIER: 5,

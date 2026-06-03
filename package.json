@@ -2,10 +2,12 @@
   "name": "starsling-battleship-agent",
   "version": "1.0.0",
   "private": true,
+  "type": "module",
   "scripts": {
-    "start": "ts-node src/index.ts",
-    "abandon": "ts-node src/index.ts --abandon",
-    "rules": "ts-node src/index.ts --rules"
+    "start": "tsx src/index.ts",
+    "abandon": "tsx src/index.ts --abandon",
+    "rules": "tsx src/index.ts --rules",
+    "stats": "tsx src/index.ts --stats"
   },
   "dependencies": {
     "@auth/agent": "latest"
@@ -13,6 +15,7 @@
   "devDependencies": {
     "@types/node": "^20",
     "ts-node": "^10",
+    "tsx": "^4.22.4",
     "typescript": "^5"
   }
 }

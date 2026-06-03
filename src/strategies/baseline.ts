@@ -8,7 +8,7 @@
  * Run: npx ts-node src/index.ts --strategy=baseline
  * Then compare: npx ts-node src/index.ts --stats
  */
-import { ITargetingStrategy, ShotContext, ShotDecision } from "../types";
+import { ITargetingStrategy, ShotContext, ShotDecision } from "../types.js";
 
 /**
  * Baseline: picks a random untried cell.

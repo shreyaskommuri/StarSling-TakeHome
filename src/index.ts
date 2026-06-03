@@ -1,10 +1,10 @@
-import { initAuth } from "./auth";
-import { abandonAttempt, getRules } from "./client";
-import { runAttempt } from "./loop";
-import { Logger, makeRunId } from "./logger";
-import { ProbabilityStrategy, BaselineStrategy } from "./strategies";
-import { ITargetingStrategy } from "./types";
-import { loadAllMetrics } from "./metrics";
+import { initAuth } from "./auth.js";
+import { abandonAttempt, getRules } from "./client.js";
+import { runAttempt } from "./loop.js";
+import { Logger, makeRunId } from "./logger.js";
+import { ProbabilityStrategy, BaselineStrategy } from "./strategies/index.js";
+import { ITargetingStrategy } from "./types.js";
+import { loadAllMetrics } from "./metrics.js";
 
 const STRATEGIES: Record<string, ITargetingStrategy> = {
   probability: new ProbabilityStrategy(),

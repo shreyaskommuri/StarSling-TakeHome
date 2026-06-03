@@ -25,7 +25,7 @@
  *   accurate but O(n) per shot. Enumerating per-ship placements is O(ships × board)
  *   and fast enough for 10×10. Extend to MonteCarloStrategy if needed.
  */
-import { ITargetingStrategy, ShotContext, ShotDecision, ShipClass } from "../types";
+import { ITargetingStrategy, ShotContext, ShotDecision, ShipClass } from "../types.js";
 
 const SHIP_LENGTHS: Record<ShipClass, number> = {
   CARRIER: 5,

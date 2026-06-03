@@ -20,8 +20,10 @@
  */
 import * as fs from "fs";
 import * as path from "path";
-import { AttemptMetric, GameMetric, MoveMetric, ShotMode, ShotOutcome } from "./types";
+import { fileURLToPath } from "url";
+import { AttemptMetric, GameMetric, MoveMetric, ShotMode, ShotOutcome } from "./types.js";
 
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const METRICS_FILE = path.resolve(__dirname, "../data/metrics.json");
 
 export function loadAllMetrics(): AttemptMetric[] {
