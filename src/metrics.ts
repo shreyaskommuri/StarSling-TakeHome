@@ -21,7 +21,7 @@
 import * as fs from "fs";
 import * as path from "path";
 import { fileURLToPath } from "url";
-import { AttemptMetric, GameMetric, MoveMetric, ShotMode, ShotOutcome } from "./types.js";
+import { AttemptMetric, GameMetric, MoveMetric, ShipClass, ShotMode, ShotOutcome } from "./types.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const METRICS_FILE = path.resolve(__dirname, "../data/metrics.json");
@@ -71,6 +71,15 @@ export function printAttemptSummary(metric: AttemptMetric): void {
   console.log(`  Strategy     : ${metric.strategy}`);
   console.log(`  Outcome      : ${metric.outcome}`);
   console.log(`  Final score  : ${metric.finalScore ?? "N/A"}`);
+  if (metric.wins !== undefined || metric.losses !== undefined) {
+    console.log(`  Record       : ${metric.wins ?? "?"}W-${metric.losses ?? "?"}L`);
+  }
+  if (metric.agentShipsLost !== undefined || metric.opponentShipsSunk !== undefined) {
+    console.log(
+      `  Ships        : sunk=${metric.opponentShipsSunk ?? "?"} ` +
+        `lost=${metric.agentShipsLost ?? "?"}`
+    );
+  }
   console.log(`  Games        : ${metric.gamesCompleted}`);
   console.log(`  Total shots  : ${metric.totalShots}`);
   console.log(`  Avg shots/game: ${metric.avgShotsPerGame.toFixed(1)}`);
@@ -92,7 +101,10 @@ export function printAttemptSummary(metric: AttemptMetric): void {
       `    [${String(g.gameOrdinal).padStart(2)}] ${g.opponentId.padEnd(12)} ` +
         `shots=${String(g.totalShots).padStart(3)} ` +
         `acc=${(g.accuracy * 100).toFixed(0).padStart(3)}% ${bar} ` +
-        `sunk=${g.shipsSunk}`
+        `sunk=${g.shipsSunk}` +
+        (g.yourShipsLost !== undefined ? ` lost=${g.yourShipsLost}` : "") +
+        (g.won !== undefined ? ` ${g.won ? "WIN" : "LOSS"}` : "") +
+        (g.gameScore !== undefined ? ` score=${g.gameScore}` : "")
     );
   }
   console.log();
@@ -103,27 +115,38 @@ export function buildMoveMetric(
   col: number,
   outcome: ShotOutcome,
   mode: ShotMode,
-  meta?: Record<string, unknown>
+  meta?: Record<string, unknown>,
+  shipClass?: ShipClass
 ): MoveMetric {
-  return { timestamp: new Date().toISOString(), row, col, outcome, mode, meta };
+  return { timestamp: new Date().toISOString(), row, col, outcome, shipClass, mode, meta };
 }
 
 export function buildGameMetric(
   opponentId: string,
   gameOrdinal: number,
   moves: MoveMetric[],
-  durationMs: number
+  durationMs: number,
+  result?: {
+    won?: boolean;
+    gameScore?: number;
+    yourShipsLost?: number;
+    opponentShipsLost?: number;
+  }
 ): GameMetric {
   const hits = moves.filter((m) => m.outcome === "HIT" || m.outcome === "SINK").length;
   const totalShots = moves.length;
   return {
     opponentId,
     gameOrdinal,
+    won: result?.won,
+    gameScore: result?.gameScore,
     totalShots,
     hits,
     misses: moves.filter((m) => m.outcome === "MISS").length,
     accuracy: totalShots > 0 ? hits / totalShots : 0,
     shipsSunk: moves.filter((m) => m.outcome === "SINK").length,
+    yourShipsLost: result?.yourShipsLost,
+    opponentShipsLost: result?.opponentShipsLost,
     durationMs,
     moves,
   };

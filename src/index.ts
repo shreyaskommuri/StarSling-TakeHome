@@ -5,6 +5,7 @@ import { Logger, makeRunId } from "./logger.js";
 import { ProbabilityStrategy, BaselineStrategy } from "./strategies/index.js";
 import { ITargetingStrategy } from "./types.js";
 import { loadAllMetrics } from "./metrics.js";
+import { getPlacementStats } from "./placement.js";
 
 const STRATEGIES: Record<string, ITargetingStrategy> = {
   probability: new ProbabilityStrategy(),
@@ -16,6 +17,7 @@ function parseArgs(): { mode: string; strategyName: string } {
   if (args.includes("--rules")) return { mode: "rules", strategyName: "probability" };
   if (args.includes("--abandon")) return { mode: "abandon", strategyName: "probability" };
   if (args.includes("--stats")) return { mode: "stats", strategyName: "probability" };
+  if (args.includes("--placement-stats")) return { mode: "placement-stats", strategyName: "probability" };
 
   const strategyArg = args.find((a) => a.startsWith("--strategy="));
   const strategyName = strategyArg ? strategyArg.split("=")[1] : "probability";
@@ -37,10 +39,31 @@ async function main(): Promise<void> {
         `[${m.timestamp.slice(0, 19)}] strategy=${m.strategy} ` +
           `score=${m.finalScore ?? "DQ"} ` +
           `games=${m.gamesCompleted} ` +
+          (m.wins !== undefined || m.losses !== undefined ? `record=${m.wins ?? "?"}-${m.losses ?? "?"} ` : "") +
+          (m.agentShipsLost !== undefined ? `lost=${m.agentShipsLost} ` : "") +
           `avgShots=${m.avgShotsPerGame.toFixed(1)} ` +
           `avgAcc=${(m.avgAccuracy * 100).toFixed(1)}%`
       );
     }
+    return;
+  }
+
+  if (mode === "placement-stats") {
+    const opponentArg = process.argv.slice(2).find((a) => a.startsWith("--opponent="));
+    const opponentId = opponentArg?.split("=")[1];
+    const stats = getPlacementStats(opponentId);
+    console.log(`Placement stats${opponentId ? ` for ${opponentId}` : ""}`);
+    console.log(`Records used: ${stats.recordsUsed}`);
+    console.log("Top targeted cells:");
+    for (const c of stats.hottest) {
+      console.log(`  (${c.row},${c.col}) danger=${c.danger.toFixed(3)}`);
+    }
+    console.log("Safest cells:");
+    for (const c of stats.safest) {
+      console.log(`  (${c.row},${c.col}) danger=${c.danger.toFixed(3)}`);
+    }
+    console.log("Selected defensive layout:");
+    console.log(JSON.stringify(stats.selected, null, 2));
     return;
   }
 

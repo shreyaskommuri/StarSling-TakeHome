@@ -37,7 +37,7 @@ import {
   summarizeGames,
   printAttemptSummary,
 } from "./metrics.js";
-import { ITargetingStrategy, GameStateEnvelope, GameMetric, MoveMetric } from "./types.js";
+import { ITargetingStrategy, GameStateEnvelope, GameMetric, MoveMetric, Shot } from "./types.js";
 
 export async function runAttempt(
   agent: AgentAuthClient,
@@ -84,12 +84,71 @@ export async function runAttempt(
   let gameStart = Date.now();
   let currentOpponentId = state.opponentId ?? "unknown";
   let currentOrdinal = state.gameOrdinal ?? 0;
+  let latestOpponentShots: Shot[] = state.opponentShots ?? [];
+
+  const finalizeCurrentGame = (terminalState: GameStateEnvelope): void => {
+    if (currentMoves.length === 0) return;
+
+    const gameMetric = buildGameMetric(
+      currentOpponentId,
+      currentOrdinal,
+      currentMoves,
+      Date.now() - gameStart,
+      {
+        won: terminalState.won,
+        gameScore: terminalState.gameScore,
+        yourShipsLost: terminalState.yourShipsLost,
+        opponentShipsLost: terminalState.opponentShipsLost,
+      }
+    );
+    games.push(gameMetric);
+
+    logger.log({
+      type: "game_end",
+      timestamp: new Date().toISOString(),
+      opponentId: currentOpponentId,
+      gameOrdinal: currentOrdinal,
+      totalShots: gameMetric.totalShots,
+      hits: gameMetric.hits,
+      accuracy: gameMetric.accuracy,
+      shipsSunk: gameMetric.shipsSunk,
+      yourShipsLost: gameMetric.yourShipsLost,
+      opponentShipsLost: gameMetric.opponentShipsLost,
+      won: gameMetric.won,
+      gameScore: gameMetric.gameScore,
+      durationMs: gameMetric.durationMs,
+    });
+
+    if (currentOpponentId !== "unknown") {
+      const toHistoryShot = (s: Shot | MoveMetric) => ({
+        row: s.row,
+        col: s.col,
+        outcome: s.outcome,
+        shipClass: s.shipClass,
+      });
+      appendGameRecord({
+        opponentId: currentOpponentId,
+        gameOrdinal: currentOrdinal,
+        shots: currentMoves.map(toHistoryShot),
+        incomingShots: (terminalState.opponentShots.length > 0 ? terminalState.opponentShots : latestOpponentShots).map(toHistoryShot),
+      });
+    }
+
+    console.log(
+      `  Game ${currentOrdinal} vs ${currentOpponentId}: ` +
+        `${gameMetric.totalShots} shots, ` +
+        `${(gameMetric.accuracy * 100).toFixed(0)}% accuracy, ` +
+        `${gameMetric.shipsSunk} sunk`
+    );
+
+    currentMoves = [];
+  };
 
   // If we resumed mid-game, seed the move log from existing shots so game-level
   // metrics (accuracy, totalShots) reflect the full game, not just this run's shots.
   if (state.yourShots?.length > 0) {
     currentMoves = state.yourShots.map((s) =>
-      buildMoveMetric(s.row, s.col, s.outcome, "resumed")
+      buildMoveMetric(s.row, s.col, s.outcome, "resumed", undefined, s.shipClass)
     );
     console.log(`  Resumed game with ${currentMoves.length} shots already taken.`);
   }
@@ -98,6 +157,8 @@ export async function runAttempt(
     const { responseType } = state;
 
     if (responseType === "ATTEMPT_COMPLETED") {
+      finalizeCurrentGame(state);
+
       const finalScore = state.finalScore ?? null;
       const durationMs = Date.now() - attemptStart;
 
@@ -108,6 +169,11 @@ export async function runAttempt(
         outcome: "completed",
         gamesCompleted: games.length,
         totalShots: games.reduce((s, g) => s + g.totalShots, 0),
+        wins: state.wins,
+        losses: state.losses,
+        opponentShipsSunk: state.opponentShipsSunk,
+        agentShipsLost: state.agentShipsLost,
+        hitDifferential: state.hitDifferential,
         durationMs,
       });
 
@@ -118,6 +184,12 @@ export async function runAttempt(
         strategy: strategy.name,
         finalScore,
         outcome: "completed" as const,
+        wins: state.wins,
+        losses: state.losses,
+        hitDifferential: state.hitDifferential,
+        opponentShipsSunk: state.opponentShipsSunk,
+        agentShipsLost: state.agentShipsLost,
+        isNewBest: state.isNewBest,
         gamesCompleted: games.length,
         totalShots: games.reduce((s, g) => s + g.totalShots, 0),
         avgShotsPerGame,
@@ -173,42 +245,7 @@ export async function runAttempt(
     }
 
     if (responseType === "GAME_COMPLETED") {
-      // Finalize the game we just completed.
-      const gameMetric = buildGameMetric(
-        currentOpponentId,
-        currentOrdinal,
-        currentMoves,
-        Date.now() - gameStart
-      );
-      games.push(gameMetric);
-
-      logger.log({
-        type: "game_end",
-        timestamp: new Date().toISOString(),
-        opponentId: currentOpponentId,
-        gameOrdinal: currentOrdinal,
-        totalShots: gameMetric.totalShots,
-        hits: gameMetric.hits,
-        accuracy: gameMetric.accuracy,
-        shipsSunk: gameMetric.shipsSunk,
-        durationMs: gameMetric.durationMs,
-      });
-
-      // Persist shot history for self-improvement on next attempt.
-      if (currentOpponentId !== "unknown" && currentMoves.length > 0) {
-        appendGameRecord({
-          opponentId: currentOpponentId,
-          gameOrdinal: currentOrdinal,
-          shots: currentMoves.map((m) => ({ row: m.row, col: m.col, outcome: m.outcome })),
-        });
-      }
-
-      console.log(
-        `  Game ${currentOrdinal} vs ${currentOpponentId}: ` +
-          `${gameMetric.totalShots} shots, ` +
-          `${(gameMetric.accuracy * 100).toFixed(0)}% accuracy, ` +
-          `${gameMetric.shipsSunk} sunk`
-      );
+      finalizeCurrentGame(state);
 
       if (!state.next) {
         // Per spec, GAME_COMPLETED always embeds .next. If it's missing, the
@@ -226,7 +263,7 @@ export async function runAttempt(
 
       // Transition to the next game.
       state = state.next;
-      currentMoves = [];
+      latestOpponentShots = state.opponentShots ?? [];
       gameStart = Date.now();
       currentOpponentId = state.opponentId ?? "unknown";
       currentOrdinal = state.gameOrdinal ?? 0;
@@ -249,10 +286,11 @@ export async function runAttempt(
 
         console.log(`\nGame ${currentOrdinal} vs ${currentOpponentId}`);
 
-        const layout = generatePlacements();
+        const layout = generatePlacements(currentOpponentId);
         validatePlacements(layout); // guard: illegal fleet = silent ATTEMPT_DISQUALIFIED
-        logger.log({ type: "ships_placed", timestamp: new Date().toISOString(), gameOrdinal: currentOrdinal });
+        logger.log({ type: "ships_placed", timestamp: new Date().toISOString(), gameOrdinal: currentOrdinal, placements: layout });
         state = await placeShips(agent, agentId, layout);
+        if (state.opponentShots.length > 0) latestOpponentShots = state.opponentShots;
         continue;
       }
 
@@ -263,12 +301,13 @@ export async function runAttempt(
         // state.yourShots from the server — the server may return shots in a
         // different order or include unexpected entries that pollute activeHits.
         const decision = strategy.pickShot({
-          yourShots: currentMoves.map((m) => ({ row: m.row, col: m.col, outcome: m.outcome })),
+          yourShots: currentMoves.map((m) => ({ row: m.row, col: m.col, outcome: m.outcome, shipClass: m.shipClass })),
           opponentShips: state.opponentShips,
           learnedHits,
         });
 
         state = await submitShot(agent, agentId, decision.row, decision.col);
+        if (state.opponentShots.length > 0) latestOpponentShots = state.opponentShots;
 
         // Find the outcome for this specific shot by matching row/col — avoids
         // assuming any particular ordering of state.yourShots (server may return
@@ -276,7 +315,7 @@ export async function runAttempt(
         const fired = state.yourShots.find((s) => s.row === decision.row && s.col === decision.col);
         const outcome = fired?.outcome ?? "MISS";
 
-        const move = buildMoveMetric(decision.row, decision.col, outcome, decision.mode, decision.meta);
+        const move = buildMoveMetric(decision.row, decision.col, outcome, decision.mode, decision.meta, fired?.shipClass);
         currentMoves.push(move);
 
         logger.log({
@@ -285,6 +324,7 @@ export async function runAttempt(
           row: decision.row,
           col: decision.col,
           outcome,
+          shipClass: fired?.shipClass,
           mode: decision.mode,
           meta: decision.meta,
         });

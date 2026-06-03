@@ -72,6 +72,8 @@ interface RawGameState {
   yourFleet?: unknown[];
   yourShots?: RawShot[];
   incomingShots?: RawShot[];
+  opponentShots?: RawShot[];
+  shotsReceived?: RawShot[];
   sunkOpponentShipClasses?: string[];
 }
 
@@ -135,11 +137,23 @@ function normalizeResponse(raw: RawResponse): GameStateEnvelope {
     opponentId: s.opponent?.opponentId,
     gameOrdinal: s.gameOrdinal,
     yourShots: normalizeShots(s.yourShots),
-    opponentShots: normalizeShots(s.incomingShots),
+    opponentShots: normalizeShots(s.incomingShots ?? s.opponentShots ?? s.shotsReceived),
     yourShips: [],
     opponentShips,
     // ATTEMPT_COMPLETED: score lives in result, not state
     finalScore: raw.result?.finalScore,
+    wins: raw.result?.wins,
+    losses: raw.result?.losses,
+    hitDifferential: raw.result?.hitDifferential,
+    opponentShipsSunk: raw.result?.opponentShipsSunk,
+    agentShipsLost: raw.result?.agentShipsLost,
+    isNewBest: raw.result?.isNewBest,
+    completionMessage: raw.result?.completionMessage,
+    // GAME_COMPLETED: per-game scoring/survival fields live in result
+    won: raw.result?.won,
+    yourShipsLost: raw.result?.yourShipsLost,
+    opponentShipsLost: raw.result?.opponentShipsLost,
+    gameScore: raw.result?.gameScore,
     // ATTEMPT_DISQUALIFIED: reason is top-level, not in state
     disqualifyReason: raw.reason as DisqualifyReason | undefined,
     // GAME_COMPLETED: next game envelope at top level

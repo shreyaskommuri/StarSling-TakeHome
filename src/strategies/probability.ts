@@ -53,6 +53,101 @@ const SHIP_LENGTHS: Record<ShipClass, number> = {
  * - No separate hunt vs. target phase — the density map handles both.
  * - Naturally focuses fire on areas consistent with remaining ships.
  */
+function collectLine(
+  sink: { row: number; col: number },
+  hitSet: Set<string>,
+  axis: "horizontal" | "vertical"
+): string[] {
+  const dirs = axis === "horizontal" ? [[0, -1], [0, 1]] : [[-1, 0], [1, 0]];
+  const cells = [`${sink.row},${sink.col}`];
+
+  for (const [dr, dc] of dirs) {
+    const line: string[] = [];
+    let r = sink.row + dr;
+    let c = sink.col + dc;
+    while (r >= 0 && r < 10 && c >= 0 && c < 10 && hitSet.has(`${r},${c}`)) {
+      line.push(`${r},${c}`);
+      r += dr;
+      c += dc;
+    }
+    if (dr < 0 || dc < 0) cells.unshift(...line.reverse());
+    else cells.push(...line);
+  }
+
+  return cells;
+}
+
+/** Identify cells belonging to sunk ships without absorbing perpendicular adjacent ships. */
+function getSunkShipCells(shots: { row: number; col: number; outcome: string; shipClass?: ShipClass }[]): Set<string> {
+  const hitSet = new Set<string>(shots.filter((s) => s.outcome === "HIT").map((s) => `${s.row},${s.col}`));
+  const sunkCells = new Set<string>();
+
+  for (const s of shots) {
+    if (s.outcome !== "SINK") continue;
+    const targetLen = s.shipClass ? SHIP_LENGTHS[s.shipClass] : undefined;
+    const horizontal = collectLine(s, hitSet, "horizontal");
+    const vertical = collectLine(s, hitSet, "vertical");
+    const candidates = [horizontal, vertical];
+    const exact = targetLen ? candidates.find((line) => line.length === targetLen) : undefined;
+    const best = exact ?? candidates.sort((a, b) => b.length - a.length)[0];
+    best.forEach((cell) => sunkCells.add(cell));
+  }
+
+  return sunkCells;
+}
+
+function parseCell(key: string): { row: number; col: number } {
+  const [row, col] = key.split(",").map(Number);
+  return { row, col };
+}
+
+function getActiveHitComponents(activeHits: Set<string>): string[][] {
+  const remaining = new Set(activeHits);
+  const components: string[][] = [];
+
+  for (const start of activeHits) {
+    if (!remaining.has(start)) continue;
+    const component: string[] = [];
+    const stack = [start];
+    remaining.delete(start);
+
+    while (stack.length > 0) {
+      const key = stack.pop()!;
+      component.push(key);
+      const { row, col } = parseCell(key);
+      for (const [dr, dc] of [[0, 1], [0, -1], [1, 0], [-1, 0]] as const) {
+        const next = `${row + dr},${col + dc}`;
+        if (remaining.has(next)) {
+          remaining.delete(next);
+          stack.push(next);
+        }
+      }
+    }
+
+    components.push(component);
+  }
+
+  return components;
+}
+
+function chooseTargetComponent(components: string[][], shots: { row: number; col: number; outcome: string }[]): Set<string> {
+  if (components.length === 0) return new Set();
+
+  const lastHitIndex = new Map<string, number>();
+  shots.forEach((s, idx) => {
+    if (s.outcome === "HIT") lastHitIndex.set(`${s.row},${s.col}`, idx);
+  });
+
+  const [best] = [...components].sort((a, b) => {
+    if (b.length !== a.length) return b.length - a.length;
+    const aLatest = Math.max(...a.map((k) => lastHitIndex.get(k) ?? -1));
+    const bLatest = Math.max(...b.map((k) => lastHitIndex.get(k) ?? -1));
+    return bLatest - aLatest;
+  });
+
+  return new Set(best);
+}
+
 export class ProbabilityStrategy implements ITargetingStrategy {
   readonly name = "probability_density";
 
@@ -60,20 +155,74 @@ export class ProbabilityStrategy implements ITargetingStrategy {
     const { yourShots, opponentShips, learnedHits } = ctx;
     const tried = new Set<string>(yourShots.map((s) => `${s.row},${s.col}`));
 
-    // Prioritize learned hit cells from prior attempts against this opponent.
-    for (const cell of learnedHits) {
-      const key = `${cell.row},${cell.col}`;
-      if (!tried.has(key)) {
-        return { row: cell.row, col: cell.col, mode: "learned", meta: { source: "history" } };
+    // Cells belonging to already-sunk ships (SINK + its connected HIT chain).
+    const sunkCells = getSunkShipCells(yourShots);
+
+    // Active hits: HIT cells not yet accounted for by a SINK (i.e., the ship is still alive).
+    const activeHits = new Set<string>(
+      yourShots
+        .filter((s) => s.outcome === "HIT" && !sunkCells.has(`${s.row},${s.col}`))
+        .map((s) => `${s.row},${s.col}`)
+    );
+    const activeHitComponents = getActiveHitComponents(activeHits);
+    const targetHits = chooseTargetComponent(activeHitComponents, yourShots);
+
+    // Fire learned cells only when there are no active unsunk hits to follow up.
+    // If we have an active hit we must finish sinking that ship before firing elsewhere.
+    // Learned cells are filtered to freq≥2 in getLearnedHits.
+    //
+    // Early-abandon: if the OPENING learned shots all miss, the opponent is using
+    // a different layout this game — stop firing learned cells and switch to hunt.
+    // We count the opening run of shots that overlap the learned list (before the
+    // first non-learned cell is fired), since hunt cells can coincidentally land on
+    // learned positions and give a false "hit" signal.
+    if (activeHits.size === 0) {
+      const learnedSet = new Set(learnedHits.map((c) => `${c.row},${c.col}`));
+      let openingLearnedTried = 0;
+      let openingLearnedHits = 0;
+      let learnedTried = 0;
+      let learnedHitsThisGame = 0;
+      for (const shot of yourShots) {
+        const key = `${shot.row},${shot.col}`;
+        if (!learnedSet.has(key)) continue;
+        learnedTried++;
+        if (shot.outcome === "HIT" || shot.outcome === "SINK") learnedHitsThisGame++;
+      }
+      for (const shot of yourShots) {
+        const key = `${shot.row},${shot.col}`;
+        if (!learnedSet.has(key)) break; // stop at first non-learned cell
+        openingLearnedTried++;
+        if (shot.outcome === "HIT" || shot.outcome === "SINK") openingLearnedHits++;
+      }
+      const learnedAbandoned = openingLearnedTried >= 6 && openingLearnedHits === 0;
+      const learnedUnderperforming = learnedTried >= 8 && learnedHitsThisGame / learnedTried < 0.35;
+
+      if (!learnedAbandoned && !learnedUnderperforming) {
+        for (const cell of learnedHits) {
+          const key = `${cell.row},${cell.col}`;
+          if (!tried.has(key)) {
+            return {
+              row: cell.row,
+              col: cell.col,
+              mode: "learned",
+              meta: {
+                source: "history",
+                learnedTried,
+                learnedHits: learnedHitsThisGame,
+              },
+            };
+          }
+        }
       }
     }
 
-    const missSet = new Set<string>(
-      yourShots.filter((s) => s.outcome === "MISS").map((s) => `${s.row},${s.col}`)
-    );
-    const activeHits = new Set<string>(
-      yourShots.filter((s) => s.outcome === "HIT").map((s) => `${s.row},${s.col}`)
-    );
+    // Cells that cannot host a remaining ship: confirmed empty (MISS) or occupied by a
+    // sunk ship. Remaining ships cannot overlap either category.
+    const excludedCells = new Set<string>([
+      ...yourShots.filter((s) => s.outcome === "MISS").map((s) => `${s.row},${s.col}`),
+      ...sunkCells,
+    ]);
+
     const unsunkClasses = opponentShips.filter((s) => !s.sunk).map((s) => s.shipClass);
 
     const density: number[][] = Array.from({ length: 10 }, () => new Array(10).fill(0));
@@ -84,8 +233,9 @@ export class ProbabilityStrategy implements ITargetingStrategy {
       for (let r = 0; r < 10; r++) {
         for (let c = 0; c <= 10 - len; c++) {
           const cells = Array.from({ length: len }, (_, i) => `${r},${c + i}`);
-          if (cells.some((k) => missSet.has(k))) continue;
-          const hitOverlap = cells.filter((k) => activeHits.has(k)).length;
+          if (cells.some((k) => excludedCells.has(k))) continue;
+          const hitOverlap = cells.filter((k) => targetHits.has(k)).length;
+          if (targetHits.size > 0 && hitOverlap === 0) continue;
           const boost = hitOverlap > 0 ? 4 * hitOverlap : 1;
           cells.forEach((k) => {
             const [cr, cc] = k.split(",").map(Number);
@@ -97,8 +247,9 @@ export class ProbabilityStrategy implements ITargetingStrategy {
       for (let r = 0; r <= 10 - len; r++) {
         for (let c = 0; c < 10; c++) {
           const cells = Array.from({ length: len }, (_, i) => `${r + i},${c}`);
-          if (cells.some((k) => missSet.has(k))) continue;
-          const hitOverlap = cells.filter((k) => activeHits.has(k)).length;
+          if (cells.some((k) => excludedCells.has(k))) continue;
+          const hitOverlap = cells.filter((k) => targetHits.has(k)).length;
+          if (targetHits.size > 0 && hitOverlap === 0) continue;
           const boost = hitOverlap > 0 ? 4 * hitOverlap : 1;
           cells.forEach((k) => {
             const [cr, cc] = k.split(",").map(Number);
@@ -108,7 +259,7 @@ export class ProbabilityStrategy implements ITargetingStrategy {
       }
     }
 
-    const inHuntMode = activeHits.size === 0;
+    const inHuntMode = targetHits.size === 0;
 
     let bestRow = -1;
     let bestCol = -1;
@@ -121,6 +272,7 @@ export class ProbabilityStrategy implements ITargetingStrategy {
       for (let c = 0; c < 10; c++) {
         if (tried.has(`${r},${c}`)) continue;
         if (inHuntMode && (r + c) % 2 !== 0) continue;
+        if (!inHuntMode && density[r][c] <= 0) continue;
         if (density[r][c] > bestScore) {
           bestScore = density[r][c];
           bestRow = r;
@@ -133,6 +285,7 @@ export class ProbabilityStrategy implements ITargetingStrategy {
     if (bestRow === -1) {
       for (let r = 0; r < 10; r++) {
         for (let c = 0; c < 10; c++) {
+          if (!inHuntMode && density[r][c] <= 0) continue;
           if (!tried.has(`${r},${c}`) && density[r][c] > bestScore) {
             bestScore = density[r][c];
             bestRow = r;
@@ -153,6 +306,16 @@ export class ProbabilityStrategy implements ITargetingStrategy {
     }
 
     const mode = inHuntMode ? "hunt" : "target";
-    return { row: bestRow, col: bestCol, mode, meta: { density: bestScore, parity: inHuntMode } };
+    return {
+      row: bestRow,
+      col: bestCol,
+      mode,
+      meta: {
+        density: bestScore,
+        parity: inHuntMode,
+        activeComponents: activeHitComponents.length,
+        targetHits: targetHits.size,
+      },
+    };
   }
 }

@@ -9,9 +9,12 @@
  *   VERTICAL:   extends downward  — startRow + length ≤ 10
  *
  * Strategy: randomize every game to prevent opponents from learning our layout.
+ * Once incoming-shot history exists, sample random legal layouts and choose the
+ * one with the lowest opponent/global early-shot danger score.
  * Validated locally before submission — illegal fleet = ATTEMPT_DISQUALIFIED (HTTP 200).
  */
 import { ShipClass, ShipPlacement, Orientation } from "./types.js";
+import { loadHistory } from "./learning.js";
 
 const SHIP_LENGTHS: Record<ShipClass, number> = {
   CARRIER: 5,
@@ -31,6 +34,14 @@ const SHIP_CLASSES: ShipClass[] = [
 
 function rnd(n: number): number {
   return Math.floor(Math.random() * n);
+}
+
+function cellsForPlacement(p: ShipPlacement): Array<{ row: number; col: number }> {
+  const len = SHIP_LENGTHS[p.shipClass];
+  return Array.from({ length: len }, (_, i) => ({
+    row: p.orientation === "VERTICAL" ? p.startRow + i : p.startRow,
+    col: p.orientation === "HORIZONTAL" ? p.startCol + i : p.startCol,
+  }));
 }
 
 /**
@@ -77,7 +88,7 @@ export function validatePlacements(placements: ShipPlacement[]): void {
   }
 }
 
-export function generatePlacements(): ShipPlacement[] {
+function generateRandomPlacements(): ShipPlacement[] {
   const occupied = new Set<string>();
   const placements: ShipPlacement[] = [];
 
@@ -108,4 +119,67 @@ export function generatePlacements(): ShipPlacement[] {
   }
 
   return placements;
+}
+
+function buildDangerMap(opponentId?: string): { danger: number[][]; recordsUsed: number } {
+  const history = loadHistory();
+  const opponentRecords = opponentId
+    ? history.filter((r) => r.opponentId === opponentId && r.incomingShots?.length)
+    : [];
+  const records = opponentRecords.length >= 2
+    ? opponentRecords
+    : history.filter((r) => r.incomingShots?.length);
+
+  const danger = Array.from({ length: 10 }, () => new Array(10).fill(0));
+  for (const record of records) {
+    for (const [idx, shot] of (record.incomingShots ?? []).entries()) {
+      if (shot.row < 0 || shot.row > 9 || shot.col < 0 || shot.col > 9) continue;
+      danger[shot.row][shot.col] += 1 / (idx + 1);
+    }
+  }
+
+  return { danger, recordsUsed: records.length };
+}
+
+function scorePlacement(placements: ShipPlacement[], danger: number[][]): number {
+  let score = 0;
+  for (const placement of placements) {
+    for (const cell of cellsForPlacement(placement)) {
+      score += danger[cell.row][cell.col];
+    }
+  }
+  return score;
+}
+
+export function generatePlacements(opponentId?: string, samples = 5000): ShipPlacement[] {
+  const { danger, recordsUsed } = buildDangerMap(opponentId);
+  if (recordsUsed === 0) return generateRandomPlacements();
+
+  let best = generateRandomPlacements();
+  let bestScore = scorePlacement(best, danger);
+  for (let i = 1; i < samples; i++) {
+    const candidate = generateRandomPlacements();
+    const score = scorePlacement(candidate, danger);
+    if (score < bestScore) {
+      best = candidate;
+      bestScore = score;
+    }
+  }
+  return best;
+}
+
+export function getPlacementStats(opponentId?: string): {
+  recordsUsed: number;
+  hottest: Array<{ row: number; col: number; danger: number }>;
+  safest: Array<{ row: number; col: number; danger: number }>;
+  selected: ShipPlacement[];
+} {
+  const { danger, recordsUsed } = buildDangerMap(opponentId);
+  const cells = danger.flatMap((row, r) => row.map((value, c) => ({ row: r, col: c, danger: value })));
+  return {
+    recordsUsed,
+    hottest: [...cells].sort((a, b) => b.danger - a.danger).slice(0, 10),
+    safest: [...cells].sort((a, b) => a.danger - b.danger).slice(0, 10),
+    selected: generatePlacements(opponentId),
+  };
 }

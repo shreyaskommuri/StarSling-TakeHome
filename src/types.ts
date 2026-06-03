@@ -43,6 +43,17 @@ export interface GameState {
   gameOrdinal?: number;
   next?: GameStateEnvelope;
   finalScore?: number;
+  wins?: number;
+  losses?: number;
+  hitDifferential?: number;
+  opponentShipsSunk?: number;
+  agentShipsLost?: number;
+  isNewBest?: boolean;
+  completionMessage?: string;
+  won?: boolean;
+  yourShipsLost?: number;
+  opponentShipsLost?: number;
+  gameScore?: number;
   disqualifyReason?: DisqualifyReason;
 }
 
@@ -59,12 +70,14 @@ export interface HistoryShot {
   row: number;
   col: number;
   outcome: ShotOutcome;
+  shipClass?: ShipClass;
 }
 
 export interface GameRecord {
   opponentId: string;
   gameOrdinal: number;
   shots: HistoryShot[];
+  incomingShots?: HistoryShot[];
 }
 
 // ─── Observability types ──────────────────────────────────────────────────────
@@ -83,6 +96,7 @@ export interface MoveMetric {
   row: number;
   col: number;
   outcome: ShotOutcome;
+  shipClass?: ShipClass;
   mode: ShotMode;
   meta?: Record<string, unknown>;
 }
@@ -90,11 +104,15 @@ export interface MoveMetric {
 export interface GameMetric {
   opponentId: string;
   gameOrdinal: number;
+  won?: boolean;
+  gameScore?: number;
   totalShots: number;
   hits: number;
   misses: number;
   accuracy: number;
   shipsSunk: number;
+  yourShipsLost?: number;
+  opponentShipsLost?: number;
   durationMs: number;
   moves: MoveMetric[];
 }
@@ -106,6 +124,12 @@ export interface AttemptMetric {
   finalScore: number | null;
   outcome: "completed" | "disqualified" | "error";
   disqualifyReason?: DisqualifyReason;
+  wins?: number;
+  losses?: number;
+  hitDifferential?: number;
+  opponentShipsSunk?: number;
+  agentShipsLost?: number;
+  isNewBest?: boolean;
   gamesCompleted: number;
   totalShots: number;
   avgShotsPerGame: number;

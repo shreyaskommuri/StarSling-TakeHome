@@ -8,7 +8,7 @@
 - **Credentials file**: `data/agent.json` — keypair + agentId, persisted via KVStorage
 - **History file**: `data/history.json` — per-opponent shot outcomes for self-improvement
 - **Language**: TypeScript, Node.js
-- **Entry point**: `npx ts-node src/index.ts`
+- **Entry point**: `npx tsx src/index.ts`
 
 ---
 
@@ -18,8 +18,8 @@ If you pick this up mid-session:
 
 1. Check `data/agent.json` — if it has an `agentId`, the agent is approved. **Never call `connectAgent` again.**
 2. Check `data/history.json` — contains shot history per opponent from past attempts.
-3. Run `npx ts-node src/index.ts` to play an attempt.
-4. If you get a 409 ACTIVE_ATTEMPT_EXISTS, run `npx ts-node src/index.ts --abandon` to clear it first.
+3. Run `npx tsx src/index.ts` to play an attempt.
+4. If you get a 409 ACTIVE_ATTEMPT_EXISTS, run `npx tsx src/index.ts --abandon` to clear it first.
 
 ---
 
@@ -35,14 +35,15 @@ src/
                 Exports: getRules, createAttempt, placeShips, submitShot,
                          getCurrentAttempt, abandonAttempt.
   types.ts      All TypeScript interfaces: envelopes, state, rules, history.
-  placement.ts  Returns a valid random fleet layout. Validates locally.
-  targeting.ts  Probability density targeting. Enumerates all valid placements
-                for remaining ships given hits/misses, picks highest-density cell.
-  learning.ts   Reads/writes data/history.json. Provides learned hit cells
-                for each opponentId that get prioritized in targeting.
+  placement.ts  Returns a valid defensive/random fleet layout. Validates locally.
+  strategies/
+    probability.ts  Probability density targeting. Enumerates valid placements
+                    for remaining ships given hits/misses, picks highest-density cell.
+  learning.ts   Reads/writes data/history.json. Provides layout-aware learned
+                hit cells for each opponentId that get prioritized in targeting.
   loop.ts       Game FSM. Drives responseType: MOVE_REQUIRED → GAME_COMPLETED
                 → ATTEMPT_COMPLETED | ATTEMPT_DISQUALIFIED.
-                Saves shot history after each game.
+                Saves shot/incoming-shot history after each game.
 data/
   agent.json    KVStorage backing file. Contains agentId + keypair.
                 DO NOT DELETE — deletion forces re-approval.
@@ -123,20 +124,20 @@ GAME_COMPLETED has `.next` already embedded — do NOT call createAttempt again.
 ## Strategy
 
 ### Placement (placement.ts)
-Random but valid. For each ship, pick random orientation + start cell, check bounds + no overlap, retry if invalid. Randomize every game — opponents may adapt or be deterministic.
+Random but valid until incoming-shot history exists. Then sample legal layouts and choose the lowest-danger layout from opponent/global incoming-shot heatmaps.
 
-### Targeting (targeting.ts) — Probability Density Map
+### Targeting (strategies/probability.ts) — Probability Density Map
 1. Build set of all tried cells from `state.yourShots`.
 2. For each unsunk ship class, enumerate ALL valid board positions (up to 200 per ship).
 3. Build density map: `density[r][c]` = count of valid placements that include cell (r,c).
-4. Cells with active (unsunk) hits have their neighbors boosted (TARGET mode implicit).
+4. Active hits are split into connected components; target mode focuses one unresolved component at a time.
 5. Shoot the highest-density untried cell.
 
 This is strictly better than hunt/target: uses ALL information (hits AND misses) to narrow down ship locations.
 
 ### Self-Improvement (learning.ts)
-- After each game, append `{opponentId, gameOrdinal, shots:[{row,col,outcome}]}` to `data/history.json`.
-- When selecting the next shot, first check if any cells from `history[opponentId]` were HIT in past games and haven't been tried yet this game → shoot those first.
+- After each game, append `{opponentId, gameOrdinal, shots, incomingShots}` to `data/history.json`.
+- When selecting the next shot, first check repeated layout fingerprints and high-confidence frequent hit cells from `history[opponentId]` that haven't been tried yet this game → shoot those first.
 - Over 2–3 attempts, we converge on each opponent's exact layout → can sink them in 17 shots minimum.
 
 ---
@@ -151,6 +152,10 @@ Per game:
 
 Opponents: 5 SCOUT (base 14) then 10 WARSHIP (base 15), fixed order.
 Perfect score: 1000 (win all 15, lose zero ships).
+
+Latest validated metric shape: attempt summaries/stats include `wins`, `losses`,
+`opponentShipsSunk`, `agentShipsLost`, and `hitDifferential` when the server returns
+them. Per-game terminal responses have not exposed per-game survival fields so far.
 
 ---
 
@@ -190,7 +195,7 @@ and skip hunt phase entirely for that ship.
 {
   "@auth/agent": "latest",
   "typescript": "^5",
-  "ts-node": "^10",
+  "tsx": "^4",
   "@types/node": "^20"
 }
 ```
@@ -201,7 +206,9 @@ and skip hunt phase entirely for that ship.
 
 ```bash
 npm install                          # install deps
-npx ts-node src/index.ts            # play one attempt
-npx ts-node src/index.ts --abandon  # abandon active attempt and exit
-npx ts-node src/index.ts --rules    # print competition rules and exit
+npx tsx src/index.ts                    # play one attempt
+npx tsx src/index.ts --stats            # print score history
+npx tsx src/index.ts --placement-stats  # inspect defensive placement heatmap
+npx tsx src/index.ts --abandon          # abandon active attempt and exit
+npx tsx src/index.ts --rules            # print competition rules and exit
 ```

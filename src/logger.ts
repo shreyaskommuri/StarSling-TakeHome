@@ -20,16 +20,17 @@
 import * as fs from "fs";
 import * as path from "path";
 import { fileURLToPath } from "url";
+import { ShipClass, ShipPlacement } from "./types.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 export type LogEvent =
   | { type: "attempt_start"; timestamp: string; runId: string; strategy: string }
   | { type: "game_start"; timestamp: string; opponentId: string; gameOrdinal: number }
-  | { type: "move"; timestamp: string; row: number; col: number; outcome: string; mode: string; meta?: Record<string, unknown> }
-  | { type: "game_end"; timestamp: string; opponentId: string; gameOrdinal: number; totalShots: number; hits: number; accuracy: number; shipsSunk: number; durationMs: number }
-  | { type: "attempt_end"; timestamp: string; finalScore: number | null; outcome: string; gamesCompleted: number; totalShots: number; durationMs: number }
-  | { type: "ships_placed"; timestamp: string; gameOrdinal: number }
+  | { type: "move"; timestamp: string; row: number; col: number; outcome: string; shipClass?: ShipClass; mode: string; meta?: Record<string, unknown> }
+  | { type: "game_end"; timestamp: string; opponentId: string; gameOrdinal: number; totalShots: number; hits: number; accuracy: number; shipsSunk: number; yourShipsLost?: number; opponentShipsLost?: number; won?: boolean; gameScore?: number; durationMs: number }
+  | { type: "attempt_end"; timestamp: string; finalScore: number | null; outcome: string; gamesCompleted: number; totalShots: number; wins?: number; losses?: number; opponentShipsSunk?: number; agentShipsLost?: number; hitDifferential?: number; durationMs: number }
+  | { type: "ships_placed"; timestamp: string; gameOrdinal: number; placements?: ShipPlacement[] }
   | { type: "error"; timestamp: string; message: string; context?: Record<string, unknown> };
 
 export class Logger {
