@@ -66,10 +66,18 @@ export async function initAuth(): Promise<{ agent: AgentAuthClient; agentId: str
   if (!agentId) {
     console.log("First run: registering agent...");
     const provider = await agent.discoverProvider(SERVER);
+    // CapabilityRequestItem = string | { name, constraints } so string[] is valid.
+    // Spread removes the readonly constraint without an unsafe cast.
     const result = await agent.connectAgent({
       provider: provider.issuer,
-      capabilities: CAPABILITIES as unknown as string[],
+      capabilities: [...CAPABILITIES],
     });
+    if (result.status !== "active") {
+      throw new Error(
+        `Agent registration returned status "${result.status}" — ` +
+          `approval may be required. Check the competition portal and re-run.`
+      );
+    }
     agentId = result.agentId;
     // Write through kv so the shared store stays consistent and
     // the SDK's keypair data already written to disk is preserved.
@@ -85,7 +93,7 @@ export async function initAuth(): Promise<{ agent: AgentAuthClient; agentId: str
 export async function mintToken(agent: AgentAuthClient, agentId: string): Promise<string> {
   const { token } = await agent.signJwt({
     agentId,
-    capabilities: CAPABILITIES as unknown as string[],
+    capabilities: [...CAPABILITIES],
   });
   return token;
 }
