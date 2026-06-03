@@ -2,7 +2,7 @@
 
 export type ShipClass = "CARRIER" | "BATTLESHIP" | "CRUISER" | "SUBMARINE" | "DESTROYER";
 export type Orientation = "HORIZONTAL" | "VERTICAL";
-export type ShotOutcome = "HIT" | "MISS" | "SUNK";
+export type ShotOutcome = "HIT" | "MISS" | "SINK";
 export type ResponseType =
   | "MOVE_REQUIRED"
   | "GAME_COMPLETED"

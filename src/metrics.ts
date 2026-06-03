@@ -9,8 +9,8 @@
  * Persistence: data/metrics.json — append-only array of AttemptMetric.
  * Read with: npx ts-node src/index.ts --stats
  *
- * Accuracy definition: hits / totalShots (where hits = HIT + SUNK outcomes).
- * Note: SUNK is the outcome of the shot that sank the last cell of a ship,
+ * Accuracy definition: hits / totalShots (where hits = HIT + SINK outcomes).
+ * Note: SINK is the outcome of the shot that sank the last cell of a ship,
  * so it counts as a hit for accuracy purposes.
  *
  * Used to answer:
@@ -114,7 +114,7 @@ export function buildGameMetric(
   moves: MoveMetric[],
   durationMs: number
 ): GameMetric {
-  const hits = moves.filter((m) => m.outcome === "HIT" || m.outcome === "SUNK").length;
+  const hits = moves.filter((m) => m.outcome === "HIT" || m.outcome === "SINK").length;
   const totalShots = moves.length;
   return {
     opponentId,
@@ -123,7 +123,7 @@ export function buildGameMetric(
     hits,
     misses: moves.filter((m) => m.outcome === "MISS").length,
     accuracy: totalShots > 0 ? hits / totalShots : 0,
-    shipsSunk: moves.filter((m) => m.outcome === "SUNK").length,
+    shipsSunk: moves.filter((m) => m.outcome === "SINK").length,
     durationMs,
     moves,
   };

@@ -49,7 +49,7 @@ export function getLearnedHits(opponentId: string): Array<{ row: number; col: nu
   for (const record of history) {
     if (record.opponentId !== opponentId) continue;
     for (const shot of record.shots) {
-      if (shot.outcome === "HIT" || shot.outcome === "SUNK") {
+      if (shot.outcome === "HIT" || shot.outcome === "SINK") {
         const key = `${shot.row},${shot.col}`;
         freq.set(key, (freq.get(key) ?? 0) + 1);
       }
