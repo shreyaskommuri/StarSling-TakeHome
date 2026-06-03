@@ -1,4 +1,6 @@
 node_modules/
 dist/
 data/agent.json
+data/history.json
+data/metrics.json
 data/logs/

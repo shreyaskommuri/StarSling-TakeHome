@@ -27,7 +27,7 @@
  */
 import { AgentAuthClient } from "@auth/agent";
 import { createAttempt, placeShips, submitShot, getCurrentAttempt } from "./client";
-import { generatePlacements } from "./placement";
+import { generatePlacements, validatePlacements } from "./placement";
 import { appendGameRecord, getLearnedHits } from "./learning";
 import { Logger } from "./logger";
 import {
@@ -61,7 +61,18 @@ export async function runAttempt(
     const msg = err instanceof Error ? err.message : String(err);
     if (msg.includes("409")) {
       console.log("Active attempt found — resuming...");
-      state = await getCurrentAttempt(agent, agentId);
+      try {
+        state = await getCurrentAttempt(agent, agentId);
+      } catch (inner: unknown) {
+        const innerMsg = inner instanceof Error ? inner.message : String(inner);
+        if (innerMsg.includes("404")) {
+          // Attempt expired between the two calls — just create a fresh one.
+          console.log("Active attempt expired, creating new one...");
+          state = await createAttempt(agent, agentId);
+        } else {
+          throw inner;
+        }
+      }
     } else {
       logger.log({ type: "error", timestamp: new Date().toISOString(), message: msg });
       throw err;
@@ -233,6 +244,7 @@ export async function runAttempt(
         console.log(`\nGame ${currentOrdinal} vs ${currentOpponentId}`);
 
         const layout = generatePlacements();
+        validatePlacements(layout); // guard: illegal fleet = silent ATTEMPT_DISQUALIFIED
         logger.log({ type: "ships_placed", timestamp: new Date().toISOString(), gameOrdinal: currentOrdinal });
         state = await placeShips(agent, agentId, layout);
         continue;
