@@ -228,7 +228,7 @@ export async function runAttempt(
     }
 
     if (responseType === "MOVE_REQUIRED") {
-      if (state.nextRequiredMove === "PLACE_SHIPS") {
+      if (state.nextRequiredMove === "PLACE_SHIPS" || (state.nextRequiredMove as unknown as string) === "place_ships") {
         currentOpponentId = state.opponentId ?? "unknown";
         currentOrdinal = state.gameOrdinal ?? 0;
         gameStart = Date.now();
@@ -250,7 +250,7 @@ export async function runAttempt(
         continue;
       }
 
-      if (state.nextRequiredMove === "SUBMIT_SHOT") {
+      if (state.nextRequiredMove === "SUBMIT_SHOT" || (state.nextRequiredMove as unknown as string) === "submit_shot") {
         const learnedHits = getLearnedHits(currentOpponentId);
         const decision = strategy.pickShot({
           yourShots: state.yourShots,
@@ -288,9 +288,16 @@ export async function runAttempt(
     logger.log({
       type: "error",
       timestamp: new Date().toISOString(),
-      message: `Unexpected responseType: ${responseType}`,
+      message: `Unexpected state`,
+      context: {
+        responseType,
+        nextRequiredMove: state.nextRequiredMove,
+        opponentId: state.opponentId,
+        gameOrdinal: state.gameOrdinal,
+      },
     });
-    console.error(`Unexpected responseType: ${responseType}`);
+    console.error(`Unexpected state: responseType=${responseType} nextRequiredMove=${state.nextRequiredMove}`);
+    console.error("Full state:", JSON.stringify(state, null, 2));
     break;
   }
 
