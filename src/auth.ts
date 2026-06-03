@@ -61,7 +61,21 @@ export async function initAuth(): Promise<{ agent: AgentAuthClient; agentId: str
     async del(key: string) { delete store[key]; saveStore(store); },
   };
   const storage = new KVStorage(kv);
-  const agent = new AgentAuthClient({ storage, allowDirectDiscovery: true });
+  const agent = new AgentAuthClient({
+    storage,
+    allowDirectDiscovery: true,
+    onApprovalRequired: (info) => {
+      console.log("\n╔══════════════════════════════════════════════════╗");
+      console.log("║         APPROVAL REQUIRED — open this URL        ║");
+      console.log("╠══════════════════════════════════════════════════╣");
+      console.log(`║  ${(info.verification_uri_complete ?? info.verification_uri ?? "").padEnd(48)} ║`);
+      if (info.user_code) {
+        console.log(`║  Code: ${info.user_code.padEnd(42)} ║`);
+      }
+      console.log(`║  Expires in: ${String(info.expires_in) + "s"} — approve now!`.padEnd(51) + "║");
+      console.log("╚══════════════════════════════════════════════════╝\n");
+    },
+  });
 
   let agentId = store["agentId"];
 
