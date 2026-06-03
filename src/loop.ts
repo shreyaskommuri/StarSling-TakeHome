@@ -134,7 +134,13 @@ export async function runAttempt(
 
     if (responseType === "ATTEMPT_DISQUALIFIED") {
       const durationMs = Date.now() - attemptStart;
-      console.log(`\nAttempt disqualified: ${state.disqualifyReason}`);
+      console.log(`\nAttempt disqualified: ${state.disqualifyReason ?? "(no reason returned — likely prior attempt state)"}`);
+      logger.log({
+        type: "error",
+        timestamp: new Date().toISOString(),
+        message: "ATTEMPT_DISQUALIFIED",
+        context: { disqualifyReason: state.disqualifyReason, gamesCompleted: games.length, stateKeys: Object.keys(state) },
+      });
 
       logger.log({
         type: "attempt_end",

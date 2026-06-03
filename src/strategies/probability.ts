@@ -11,14 +11,19 @@
  *   Probability density uses ALL information simultaneously — every miss
  *   eliminates placements across ALL ships, not just the one being targeted.
  *
- * Hit boost: placements containing an active (unsunk) hit cell are weighted 4x.
- * This focuses the density map on the area around confirmed hits, effectively
- * merging the "target" phase into the density calculation.
+ * Parity filtering (hunt mode): Any ship of length ≥2 must cover at least
+ *   one cell of each parity class, so a checkerboard scan guarantees a hit
+ *   while firing only half the board (~50 cells vs ~100). Once an active hit
+ *   exists we disable the filter so we can finish the ship.
+ *
+ * Hit boost: placements containing k active (unsunk) hit cells are weighted
+ *   4k× instead of a flat 4×. A placement aligned with 2 confirmed collinear
+ *   hits gets 8×, correctly amplifying orientation information.
  *
  * Mode labeling (for observability):
  *   "learned" — firing a cell from prior-attempt history (highest confidence)
  *   "target"  — active unsunk hit exists; density is boosted around it
- *   "hunt"    — no active hits; pure placement probability
+ *   "hunt"    — no active hits; pure placement probability with parity filter
  *
  * Tradeoff vs Monte Carlo:
  *   Full Monte Carlo (sampling random valid full-fleet arrangements) is more
@@ -80,7 +85,8 @@ export class ProbabilityStrategy implements ITargetingStrategy {
         for (let c = 0; c <= 10 - len; c++) {
           const cells = Array.from({ length: len }, (_, i) => `${r},${c + i}`);
           if (cells.some((k) => missSet.has(k))) continue;
-          const boost = cells.some((k) => activeHits.has(k)) ? 4 : 1;
+          const hitOverlap = cells.filter((k) => activeHits.has(k)).length;
+          const boost = hitOverlap > 0 ? 4 * hitOverlap : 1;
           cells.forEach((k) => {
             const [cr, cc] = k.split(",").map(Number);
             density[cr][cc] += boost;
@@ -92,7 +98,8 @@ export class ProbabilityStrategy implements ITargetingStrategy {
         for (let c = 0; c < 10; c++) {
           const cells = Array.from({ length: len }, (_, i) => `${r + i},${c}`);
           if (cells.some((k) => missSet.has(k))) continue;
-          const boost = cells.some((k) => activeHits.has(k)) ? 4 : 1;
+          const hitOverlap = cells.filter((k) => activeHits.has(k)).length;
+          const boost = hitOverlap > 0 ? 4 * hitOverlap : 1;
           cells.forEach((k) => {
             const [cr, cc] = k.split(",").map(Number);
             density[cr][cc] += boost;
@@ -101,13 +108,20 @@ export class ProbabilityStrategy implements ITargetingStrategy {
       }
     }
 
+    const inHuntMode = activeHits.size === 0;
+
     let bestRow = -1;
     let bestCol = -1;
     let bestScore = -1;
 
+    // In hunt mode, apply checkerboard parity: any ship of length ≥2 spans both
+    // parity classes so we're guaranteed to hit it while firing only ~50 cells.
+    // Disable the filter the moment there's an active hit so we can finish the ship.
     for (let r = 0; r < 10; r++) {
       for (let c = 0; c < 10; c++) {
-        if (!tried.has(`${r},${c}`) && density[r][c] > bestScore) {
+        if (tried.has(`${r},${c}`)) continue;
+        if (inHuntMode && (r + c) % 2 !== 0) continue;
+        if (density[r][c] > bestScore) {
           bestScore = density[r][c];
           bestRow = r;
           bestCol = c;
@@ -115,9 +129,21 @@ export class ProbabilityStrategy implements ITargetingStrategy {
       }
     }
 
-    // Fallback: density is zero (all remaining ships are fully constrained or
-    // state is inconsistent). Pick any untried cell to keep the game moving.
+    // Parity cells exhausted (late game) or density zero — fall back to full board.
     if (bestRow === -1) {
+      for (let r = 0; r < 10; r++) {
+        for (let c = 0; c < 10; c++) {
+          if (!tried.has(`${r},${c}`) && density[r][c] > bestScore) {
+            bestScore = density[r][c];
+            bestRow = r;
+            bestCol = c;
+          }
+        }
+      }
+    }
+
+    if (bestRow === -1) {
+      // Truly no cells left — game should have ended already.
       for (let r = 0; r < 10; r++) {
         for (let c = 0; c < 10; c++) {
           if (!tried.has(`${r},${c}`)) return { row: r, col: c, mode: "hunt", meta: { density: 0 } };
@@ -126,7 +152,7 @@ export class ProbabilityStrategy implements ITargetingStrategy {
       throw new Error("No untried cells remain — game should have ended already");
     }
 
-    const mode = activeHits.size > 0 ? "target" : "hunt";
-    return { row: bestRow, col: bestCol, mode, meta: { density: bestScore } };
+    const mode = inHuntMode ? "hunt" : "target";
+    return { row: bestRow, col: bestCol, mode, meta: { density: bestScore, parity: inHuntMode } };
   }
 }
