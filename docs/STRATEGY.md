@@ -33,9 +33,9 @@ When there are active unsunk hits on the board, placements that include those hi
 
 ### Learned hits (cross-attempt)
 
-Before building the density map, we check `data/history.json` for cells that were confirmed hits against this opponent in prior attempts. Opponents are deterministic, so these cells will hit again. We fire them first (mode: `learned`).
+Before building the density map, we check `data/history.json` for cells that were confirmed hits against this opponent in prior attempts. These cells are useful when the opponent repeats a layout, but history is treated as a hint rather than a guarantee because some opponents showed layout variance or weak cycles. When confidence is low, the agent falls back to probability density.
 
-After 2-3 attempts, we've seen enough of each opponent's layout to fire their ship locations directly, converging to ~17 shots/game (minimum to sink all 5 ships).
+After multiple attempts, repeated hit cells can speed up openings against opponents that reuse layout patterns. The agent still keeps probability density as the fallback when history underperforms.
 
 ---
 

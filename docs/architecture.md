@@ -38,7 +38,7 @@ data/                   (gitignored — runtime only)
   logs/                 Per-run JSONL event logs.
 
 docs/
-  ARCHITECTURE.md       This file.
+  architecture.md       This file.
   DECISIONS.md          Design decisions and tradeoffs.
   OBSERVABILITY.md      How to read logs and metrics.
   STRATEGY.md           Targeting algorithm deep-dive.
@@ -105,7 +105,7 @@ index.ts
 ### learning.ts
 - Appends shot records after each game.
 - `getLearnedHits(opponentId)` returns confirmed hit cells sorted by frequency.
-- Opponents are deterministic → converges on exact layout in 2–3 attempts.
+- Uses history conservatively because several opponents showed layout variance or weak cycles.
 
 ### logger.ts
 - One JSONL file per run: `data/logs/{runId}.jsonl`.

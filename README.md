@@ -2,6 +2,13 @@
 
 This project is a self-improving Battleship agent built around closed-loop optimization, observability, and measured iteration. I treated the challenge as an engineering optimization problem: instrument the system, identify the dominant failure mode, make a targeted change, run an attempt, compare metrics, and keep or reject the change based on regression gates.
 
+## Reviewer Guide
+
+- [Results summary](docs/results-summary.md): final score, config, and key insight
+- [Architecture](docs/architecture.md): module map and data flow
+- [Experiments](docs/experiments.md): promoted and rejected changes
+- [Development log](DEVLOG.md): full iteration record, including failed attempts and volatility checks
+
 The highest observed score was **771/1000** with `targeted_defense_v1`:
 
 - **15W-0L**
@@ -50,7 +57,33 @@ I split the work the way I would approach a production optimization problem unde
 - Once wins and survival data were available, I shifted effort toward targeted defensive placement and opponent modeling.
 - Finally, I used config-based experiments, per-attempt metrics, and regression gates to decide what to promote or reject.
 
+The research process was intentionally time-boxed and evidence-led. I used the early window to fix correctness and observability, the middle window to improve targeting and learning, and the final window to compare configs and reduce variance. When an idea looked clever but hurt the score, win rate, or own-ship losses, I rejected it instead of trying to rationalize it.
+
 I did not blindly promote every high-scoring experiment. The 755 and 771 runs were valuable because they showed upside, but reruns exposed volatility. That led to a careful distinction between the highest observed configuration and the safer rollback profile.
+
+## How To Run
+
+Create an ignored `.env` file with the competition id:
+
+```bash
+COMPETITION_ID=...
+```
+
+Then install and run:
+
+```bash
+npm install
+npx tsx src/index.ts
+```
+
+Useful local-only commands:
+
+```bash
+npx tsx src/index.ts --stats
+npx tsx src/index.ts --report=best
+npx tsx src/index.ts --configs
+npx tsx src/index.ts --config=stable_713
+```
 
 ## Architecture
 
