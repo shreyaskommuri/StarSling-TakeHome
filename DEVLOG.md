@@ -227,6 +227,6 @@ npx tsx src/index.ts --abandon    # Abandon active attempt
 
 - **Server**: `https://intern-battleship-game-server.vercel.app`
 - **Docs**: `https://challenge.starsling.dev/docs`
-- **Competition ID**: `OMITTED_COMPETITION_ID`
-- **Agent ID**: `OMITTED_AGENT_ID` (in `data/agent.json`)
+- **Competition ID**: omitted from public notes
+- **Agent ID**: omitted from public notes; stored locally in ignored `data/agent.json`
 - **15 games per attempt**, opponents: hydra-probe, lyra-skiff, orion-scout, eridanus-drone, pleiades-skimmer, cygnus-stalker, vega-marauder, andromeda-cruiser, tau-ceti-phantom, rigel-reaver, antares-predator, betelgeuse-berserker, polaris-warship, sirius-dreadnought, centauri-battlecruiser
