@@ -30,6 +30,7 @@ import { createAttempt, placeShips, submitShot, getCurrentAttempt } from "./clie
 import { generatePlacements, validatePlacements } from "./placement.js";
 import { appendGameRecord, getLearnedHits } from "./learning.js";
 import { Logger } from "./logger.js";
+import { AgentConfig, STABLE_713 } from "./config.js";
 import {
   buildMoveMetric,
   buildGameMetric,
@@ -43,13 +44,14 @@ export async function runAttempt(
   agent: AgentAuthClient,
   agentId: string,
   strategy: ITargetingStrategy,
-  logger: Logger
+  logger: Logger,
+  config: AgentConfig = STABLE_713
 ): Promise<void> {
   const attemptStart = Date.now();
   const runId = logger.logPath.split("/").pop()?.replace(".jsonl", "") ?? "unknown";
 
-  logger.log({ type: "attempt_start", timestamp: new Date().toISOString(), runId, strategy: strategy.name });
-  console.log(`Starting attempt [${runId}] with strategy: ${strategy.name}`);
+  logger.log({ type: "attempt_start", timestamp: new Date().toISOString(), runId, strategy: strategy.name, configName: config.name });
+  console.log(`Starting attempt [${runId}] with strategy: ${strategy.name} config=${config.name}`);
 
   let state: GameStateEnvelope;
 
@@ -182,6 +184,7 @@ export async function runAttempt(
         id: runId,
         timestamp: new Date().toISOString(),
         strategy: strategy.name,
+        configName: config.name,
         finalScore,
         outcome: "completed" as const,
         wins: state.wins,
@@ -229,6 +232,7 @@ export async function runAttempt(
         id: runId,
         timestamp: new Date().toISOString(),
         strategy: strategy.name,
+        configName: config.name,
         finalScore: null,
         outcome: "disqualified",
         disqualifyReason: state.disqualifyReason,
@@ -286,7 +290,7 @@ export async function runAttempt(
 
         console.log(`\nGame ${currentOrdinal} vs ${currentOpponentId}`);
 
-        const layout = generatePlacements(currentOpponentId);
+        const layout = generatePlacements(currentOpponentId, config.placementSamples, config);
         validatePlacements(layout); // guard: illegal fleet = silent ATTEMPT_DISQUALIFIED
         logger.log({ type: "ships_placed", timestamp: new Date().toISOString(), gameOrdinal: currentOrdinal, placements: layout });
         state = await placeShips(agent, agentId, layout);
@@ -295,7 +299,7 @@ export async function runAttempt(
       }
 
       if (state.nextRequiredMove === "SUBMIT_SHOT" || (state.nextRequiredMove as unknown as string) === "submit_shot") {
-        const learnedHits = getLearnedHits(currentOpponentId);
+        const learnedHits = getLearnedHits(currentOpponentId, config);
 
         // Use currentMoves (shots WE fired this game, ground truth) rather than
         // state.yourShots from the server — the server may return shots in a

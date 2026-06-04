@@ -18,6 +18,7 @@
 import * as fs from "fs";
 import * as path from "path";
 import { fileURLToPath } from "url";
+import { AgentConfig, STABLE_713 } from "./config.js";
 import { GameRecord } from "./types.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -58,7 +59,46 @@ export function appendGameRecord(record: GameRecord): void {
  * every record; a cycling opponent's cells appear in whichever records used the
  * same layout cycle. Returned sorted by frequency (highest confidence first).
  */
-export function getLearnedHits(opponentId: string): Array<{ row: number; col: number }> {
+function layoutCells(record: GameRecord): string[] {
+  return Array.from(
+    new Set(
+      record.shots
+        .filter((shot) => shot.outcome === "HIT" || shot.outcome === "SINK")
+        .map((shot) => `${shot.row},${shot.col}`)
+    )
+  ).sort();
+}
+
+function cyclePrediction(records: GameRecord[], config: AgentConfig): string[] | null {
+  if (!config.cyclePrediction.enabled || records.length < config.cyclePrediction.minRecords) return null;
+
+  const fingerprints = records.map((record) => layoutCells(record).join("|"));
+  const lastIndex = fingerprints.length - 1;
+
+  for (let period = 2; period <= config.cyclePrediction.maxPeriod; period++) {
+    if (fingerprints.length < period * 2) continue;
+    let checked = 0;
+    let matched = 0;
+
+    for (let i = period; i < fingerprints.length; i++) {
+      checked++;
+      if (fingerprints[i] === fingerprints[i - period]) matched++;
+    }
+
+    const confidence = checked > 0 ? matched / checked : 0;
+    if (matched >= config.cyclePrediction.minRepeats && confidence >= config.cyclePrediction.minConfidence) {
+      const predicted = fingerprints[lastIndex - period + 1];
+      if (predicted) return predicted.split("|").filter(Boolean);
+    }
+  }
+
+  return null;
+}
+
+export function getLearnedHits(
+  opponentId: string,
+  config: AgentConfig = STABLE_713
+): Array<{ row: number; col: number; count: number; recordCount: number; source?: string }> {
   const history = loadHistory();
   const opponentRecords = history.filter((r) => r.opponentId === opponentId);
   if (opponentRecords.length === 0) return [];
@@ -67,13 +107,7 @@ export function getLearnedHits(opponentId: string): Array<{ row: number; col: nu
   const fingerprints = new Map<string, { count: number; lastIndex: number; cells: string[] }>();
 
   opponentRecords.forEach((record, idx) => {
-    const cells = Array.from(
-      new Set(
-        record.shots
-          .filter((shot) => shot.outcome === "HIT" || shot.outcome === "SINK")
-          .map((shot) => `${shot.row},${shot.col}`)
-      )
-    ).sort();
+    const cells = layoutCells(record);
     if (cells.length > 0) {
       const key = cells.join("|");
       const existing = fingerprints.get(key);
@@ -95,7 +129,15 @@ export function getLearnedHits(opponentId: string): Array<{ row: number; col: nu
   }
 
   const recordCount = opponentRecords.length;
-  const highConfidenceThreshold = Math.max(3, Math.ceil(recordCount * 0.5));
+  const predictedCells = cyclePrediction(opponentRecords, config);
+  if (predictedCells) {
+    return predictedCells.map((key) => {
+      const [row, col] = key.split(",").map(Number);
+      return { row, col, count: freq.get(key) ?? 0, recordCount, source: "cycle" };
+    });
+  }
+
+  const highConfidenceThreshold = Math.max(config.learned.frequencyMin, Math.ceil(recordCount * config.learned.frequencyRatio));
   const frequencyCells = Array.from(freq.entries())
     .filter(([, count]) => count >= highConfidenceThreshold)
     .sort((a, b) => b[1] - a[1])
@@ -105,11 +147,11 @@ export function getLearnedHits(opponentId: string): Array<{ row: number; col: nu
     });
 
   const repeatedLayout = Array.from(fingerprints.values())
-    .filter((layout) => layout.count >= 2 && (layout.count >= 3 || layout.count / recordCount >= 0.5))
+    .filter((layout) => layout.count >= config.learned.repeatedMin && layout.count / recordCount >= config.learned.repeatedRatio)
     .sort((a, b) => b.lastIndex - a.lastIndex)[0];
 
   if (!repeatedLayout) {
-    return frequencyCells.map(({ row, col }) => ({ row, col }));
+    return frequencyCells.map(({ row, col, key }) => ({ row, col, count: freq.get(key) ?? 0, recordCount, source: "frequency" }));
   }
 
   const seen = new Set<string>();
@@ -124,6 +166,6 @@ export function getLearnedHits(opponentId: string): Array<{ row: number; col: nu
 
   return orderedKeys.map((key) => {
     const [row, col] = key.split(",").map(Number);
-    return { row, col };
+    return { row, col, count: freq.get(key) ?? 0, recordCount, source: "layout" };
   });
 }

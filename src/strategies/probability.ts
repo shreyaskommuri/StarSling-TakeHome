@@ -24,6 +24,7 @@
  *   "learned" — firing a cell from prior-attempt history (highest confidence)
  *   "target"  — active unsunk hit exists; density is boosted around it
  *   "hunt"    — no active hits; pure placement probability with parity filter
+ *   "final"   — four ships sunk; finish the remaining ship with density only
  *
  * Tradeoff vs Monte Carlo:
  *   Full Monte Carlo (sampling random valid full-fleet arrangements) is more
@@ -31,6 +32,7 @@
  *   and fast enough for 10×10. Extend to MonteCarloStrategy if needed.
  */
 import { ITargetingStrategy, ShotContext, ShotDecision, ShipClass } from "../types.js";
+import { AgentConfig, STABLE_713 } from "../config.js";
 
 const SHIP_LENGTHS: Record<ShipClass, number> = {
   CARRIER: 5,
@@ -148,8 +150,15 @@ function chooseTargetComponent(components: string[][], shots: { row: number; col
   return new Set(best);
 }
 
+function isHighConfidenceLearned(cell: { count?: number; recordCount?: number }, config: AgentConfig): boolean {
+  if (!cell.count || !cell.recordCount) return false;
+  return cell.count >= config.learned.finalLearnedMin && cell.count / cell.recordCount >= config.learned.finalLearnedRatio;
+}
+
 export class ProbabilityStrategy implements ITargetingStrategy {
   readonly name = "probability_density";
+
+  constructor(private readonly config: AgentConfig = STABLE_713) {}
 
   pickShot(ctx: ShotContext): ShotDecision {
     const { yourShots, opponentShips, learnedHits } = ctx;
@@ -166,6 +175,11 @@ export class ProbabilityStrategy implements ITargetingStrategy {
     );
     const activeHitComponents = getActiveHitComponents(activeHits);
     const targetHits = chooseTargetComponent(activeHitComponents, yourShots);
+    const sunkCount = Math.max(
+      opponentShips.filter((s) => s.sunk).length,
+      yourShots.filter((s) => s.outcome === "SINK").length
+    );
+    const finalShipPhase = sunkCount >= 4;
 
     // Fire learned cells only when there are no active unsunk hits to follow up.
     // If we have an active hit we must finish sinking that ship before firing elsewhere.
@@ -194,26 +208,33 @@ export class ProbabilityStrategy implements ITargetingStrategy {
         openingLearnedTried++;
         if (shot.outcome === "HIT" || shot.outcome === "SINK") openingLearnedHits++;
       }
-      const learnedAbandoned = openingLearnedTried >= 6 && openingLearnedHits === 0;
-      const learnedUnderperforming = learnedTried >= 8 && learnedHitsThisGame / learnedTried < 0.35;
+      const learnedAbandoned = openingLearnedTried >= this.config.learned.openingMissAbandon && openingLearnedHits === 0;
+      const learnedUnderperforming =
+        learnedTried >= this.config.learned.underperformingMin &&
+        learnedHitsThisGame / learnedTried < this.config.learned.underperformingHitRate;
 
       if (!learnedAbandoned && !learnedUnderperforming) {
-        for (const cell of learnedHits) {
+        const candidates = finalShipPhase ? learnedHits.filter((cell) => isHighConfidenceLearned(cell, this.config)) : learnedHits;
+        for (const cell of candidates) {
           const key = `${cell.row},${cell.col}`;
           if (!tried.has(key)) {
             return {
               row: cell.row,
               col: cell.col,
-              mode: "learned",
+              mode: finalShipPhase ? "final" : "learned",
               meta: {
                 source: "history",
+                confidence: cell.count && cell.recordCount ? cell.count / cell.recordCount : undefined,
+                learnedSource: cell.source,
                 learnedTried,
                 learnedHits: learnedHitsThisGame,
+                finalShipPhase,
               },
             };
           }
         }
       }
+
     }
 
     // Cells that cannot host a remaining ship: confirmed empty (MISS) or occupied by a
@@ -305,7 +326,7 @@ export class ProbabilityStrategy implements ITargetingStrategy {
       throw new Error("No untried cells remain — game should have ended already");
     }
 
-    const mode = inHuntMode ? "hunt" : "target";
+    const mode = finalShipPhase ? "final" : inHuntMode ? "hunt" : "target";
     return {
       row: bestRow,
       col: bestCol,
@@ -314,6 +335,8 @@ export class ProbabilityStrategy implements ITargetingStrategy {
         density: bestScore,
         parity: inHuntMode,
         activeComponents: activeHitComponents.length,
+        finalShipPhase,
+        sunkCount,
         targetHits: targetHits.size,
       },
     };

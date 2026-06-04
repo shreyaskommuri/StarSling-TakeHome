@@ -15,6 +15,7 @@
  */
 import { ShipClass, ShipPlacement, Orientation } from "./types.js";
 import { loadHistory } from "./learning.js";
+import { AgentConfig, STABLE_713 } from "./config.js";
 
 const SHIP_LENGTHS: Record<ShipClass, number> = {
   CARRIER: 5,
@@ -121,12 +122,33 @@ function generateRandomPlacements(): ShipPlacement[] {
   return placements;
 }
 
-function buildDangerMap(opponentId?: string): { danger: number[][]; recordsUsed: number } {
+function incomingShotWeight(turn: number, targeted: boolean): number {
+  if (targeted) {
+    if (turn <= 10) return 4;
+    if (turn <= 20) return 2;
+    if (turn <= 35) return 1;
+    return 0.25;
+  }
+  return 1 / turn;
+}
+
+function isTargetedDefenseOpponent(opponentId: string | undefined, config: AgentConfig): boolean {
+  return Boolean(
+    opponentId &&
+      config.targetedDefense.enabled &&
+      config.targetedDefense.opponents.includes(opponentId)
+  );
+}
+
+function buildDangerMap(opponentId?: string, config: AgentConfig = STABLE_713): { danger: number[][]; recordsUsed: number; targeted: boolean } {
   const history = loadHistory();
+  const targeted = isTargetedDefenseOpponent(opponentId, config);
   const opponentRecords = opponentId
     ? history.filter((r) => r.opponentId === opponentId && r.incomingShots?.length)
     : [];
-  const records = opponentRecords.length >= 2
+  const records = targeted && opponentRecords.length < config.targetedDefense.minRecords
+    ? []
+    : opponentRecords.length >= 2
     ? opponentRecords
     : history.filter((r) => r.incomingShots?.length);
 
@@ -134,32 +156,48 @@ function buildDangerMap(opponentId?: string): { danger: number[][]; recordsUsed:
   for (const record of records) {
     for (const [idx, shot] of (record.incomingShots ?? []).entries()) {
       if (shot.row < 0 || shot.row > 9 || shot.col < 0 || shot.col > 9) continue;
-      danger[shot.row][shot.col] += 1 / (idx + 1);
+      danger[shot.row][shot.col] += incomingShotWeight(idx + 1, targeted);
     }
   }
 
-  return { danger, recordsUsed: records.length };
+  return { danger, recordsUsed: records.length, targeted };
 }
 
-function scorePlacement(placements: ShipPlacement[], danger: number[][]): number {
+function scorePlacement(placements: ShipPlacement[], danger: number[][], config: AgentConfig, targeted: boolean): number {
   let score = 0;
+  const occupiedByShip: Array<{ row: number; col: number; shipClass: ShipClass }> = [];
   for (const placement of placements) {
     for (const cell of cellsForPlacement(placement)) {
-      score += danger[cell.row][cell.col];
+      score += danger[cell.row][cell.col] * (targeted ? config.targetedDefense.dangerWeight : 1);
+      occupiedByShip.push({ ...cell, shipClass: placement.shipClass });
     }
   }
+
+  if (targeted) {
+    for (let i = 0; i < occupiedByShip.length; i++) {
+      for (let j = i + 1; j < occupiedByShip.length; j++) {
+        if (occupiedByShip[i].shipClass === occupiedByShip[j].shipClass) continue;
+        const distance =
+          Math.abs(occupiedByShip[i].row - occupiedByShip[j].row) +
+          Math.abs(occupiedByShip[i].col - occupiedByShip[j].col);
+        if (distance === 1) score += config.targetedDefense.spacingAdjacentPenalty;
+        else if (distance === 2) score += config.targetedDefense.spacingDistanceTwoPenalty;
+      }
+    }
+  }
+
   return score;
 }
 
-export function generatePlacements(opponentId?: string, samples = 5000): ShipPlacement[] {
-  const { danger, recordsUsed } = buildDangerMap(opponentId);
+export function generatePlacements(opponentId?: string, samples = 5000, config: AgentConfig = STABLE_713): ShipPlacement[] {
+  const { danger, recordsUsed, targeted } = buildDangerMap(opponentId, config);
   if (recordsUsed === 0) return generateRandomPlacements();
 
   let best = generateRandomPlacements();
-  let bestScore = scorePlacement(best, danger);
+  let bestScore = scorePlacement(best, danger, config, targeted);
   for (let i = 1; i < samples; i++) {
     const candidate = generateRandomPlacements();
-    const score = scorePlacement(candidate, danger);
+    const score = scorePlacement(candidate, danger, config, targeted);
     if (score < bestScore) {
       best = candidate;
       bestScore = score;
@@ -168,18 +206,20 @@ export function generatePlacements(opponentId?: string, samples = 5000): ShipPla
   return best;
 }
 
-export function getPlacementStats(opponentId?: string): {
+export function getPlacementStats(opponentId?: string, config: AgentConfig = STABLE_713): {
   recordsUsed: number;
   hottest: Array<{ row: number; col: number; danger: number }>;
   safest: Array<{ row: number; col: number; danger: number }>;
   selected: ShipPlacement[];
+  targeted: boolean;
 } {
-  const { danger, recordsUsed } = buildDangerMap(opponentId);
+  const { danger, recordsUsed, targeted } = buildDangerMap(opponentId, config);
   const cells = danger.flatMap((row, r) => row.map((value, c) => ({ row: r, col: c, danger: value })));
   return {
     recordsUsed,
     hottest: [...cells].sort((a, b) => b.danger - a.danger).slice(0, 10),
     safest: [...cells].sort((a, b) => a.danger - b.danger).slice(0, 10),
-    selected: generatePlacements(opponentId),
+    selected: generatePlacements(opponentId, 5000, config),
+    targeted,
   };
 }

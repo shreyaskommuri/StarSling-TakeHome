@@ -87,9 +87,10 @@ export interface GameRecord {
  * - learned: cell was taken from prior-attempt history for this opponent
  * - target: active unsunk hit(s) on board; density is focused around them
  * - hunt:   no active hits; density reflects pure placement probability
+ * - final:  four ships are sunk; finish the remaining ship with density only
  * - resumed: shot was already on the board when we reconnected mid-game
  */
-export type ShotMode = "learned" | "target" | "hunt" | "resumed";
+export type ShotMode = "learned" | "target" | "hunt" | "final" | "resumed";
 
 export interface MoveMetric {
   timestamp: string;
@@ -121,6 +122,7 @@ export interface AttemptMetric {
   id: string;
   timestamp: string;
   strategy: string;
+  configName?: string;
   finalScore: number | null;
   outcome: "completed" | "disqualified" | "error";
   disqualifyReason?: DisqualifyReason;
@@ -145,7 +147,7 @@ export interface AttemptMetric {
 export interface ShotContext {
   yourShots: Shot[];
   opponentShips: ShipStatus[];
-  learnedHits: Array<{ row: number; col: number }>;
+  learnedHits: Array<{ row: number; col: number; count?: number; recordCount?: number; source?: string }>;
 }
 
 export interface ShotDecision {

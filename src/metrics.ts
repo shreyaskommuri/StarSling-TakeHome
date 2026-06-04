@@ -41,6 +41,57 @@ export function saveAttemptMetric(metric: AttemptMetric): void {
   fs.writeFileSync(METRICS_FILE, JSON.stringify(all, null, 2));
 }
 
+export function selectAttemptReport(kind: "latest" | "best" = "latest"): AttemptMetric | null {
+  const all = loadAllMetrics().filter((m) => m.outcome === "completed");
+  if (all.length === 0) return null;
+  if (kind === "latest") return all[all.length - 1];
+  return [...all].sort((a, b) => (b.finalScore ?? -Infinity) - (a.finalScore ?? -Infinity))[0];
+}
+
+export function printOpponentReport(metric: AttemptMetric): void {
+  const minHits = Math.min(...metric.games.map((g) => g.hits));
+  const incompleteHitGames = metric.games.filter((g) => g.hits < 16);
+  const likelyLosses = metric.games.filter(
+    (g) => g.won === false || (metric.losses && metric.losses > 0 && (g.hits === minHits || g.hits < 16))
+  );
+  const visibleFourSunk = metric.games.filter((g) => g.shipsSunk === 4);
+  const lowHitGames = metric.games.filter((g) => g.hits === minHits);
+
+  console.log("\n════════════ OPPONENT REPORT ════════════");
+  console.log(`  Attempt      : ${metric.timestamp.slice(0, 19)}`);
+  console.log(`  Config       : ${metric.configName ?? "untagged"}`);
+  console.log(`  Score        : ${metric.finalScore ?? "N/A"}`);
+  console.log(`  Record       : ${metric.wins ?? "?"}W-${metric.losses ?? "?"}L`);
+  console.log(`  Ships        : sunk=${metric.opponentShipsSunk ?? "?"} lost=${metric.agentShipsLost ?? "?"}`);
+  console.log(`  Shots        : ${metric.totalShots}`);
+  console.log("  Likely loss  : " + (likelyLosses.length ? likelyLosses.map((g) => `${g.opponentId} (#${g.gameOrdinal})`).join(", ") : "none detected"));
+  console.log("  Lowest-hit games: " + (lowHitGames.length ? lowHitGames.map((g) => `${g.opponentId} hits=${g.hits}`).join(", ") : "none"));
+  console.log("  Incomplete-hit games: " + (incompleteHitGames.length ? incompleteHitGames.map((g) => `${g.opponentId} hits=${g.hits}`).join(", ") : "none"));
+  console.log("  Visible 4-sink games: " + (visibleFourSunk.length ? visibleFourSunk.map((g) => g.opponentId).join(", ") : "none"));
+  console.log("═════════════════════════════════════════\n");
+
+  console.log("  Per-opponent details:");
+  for (const g of metric.games) {
+    const last = g.moves[g.moves.length - 1];
+    const flags = [
+      g.hits === minHits ? "LOWEST_HITS" : "",
+      g.hits < 16 ? "INCOMPLETE_HITS" : "",
+      g.shipsSunk === 4 ? "VISIBLE_4_SUNK" : "",
+      g.won === false ? "LOSS" : "",
+    ].filter(Boolean);
+    console.log(
+      `    [${String(g.gameOrdinal).padStart(2)}] ${g.opponentId.padEnd(22)} ` +
+        `shots=${String(g.totalShots).padStart(3)} hits=${String(g.hits).padStart(2)} ` +
+        `sinks=${g.shipsSunk} lost=${g.yourShipsLost ?? "?"} ` +
+        `won=${g.won === undefined ? "?" : g.won ? "Y" : "N"} ` +
+        `acc=${(g.accuracy * 100).toFixed(0).padStart(3)}% ` +
+        `last=${last ? `${last.outcome}@${last.row},${last.col}/${last.mode}` : "n/a"}` +
+        (flags.length ? ` ${flags.join(",")}` : "")
+    );
+  }
+  console.log();
+}
+
 export function summarizeGames(games: GameMetric[]): {
   avgShotsPerGame: number;
   avgAccuracy: number;
@@ -69,6 +120,7 @@ export function summarizeGames(games: GameMetric[]): {
 export function printAttemptSummary(metric: AttemptMetric): void {
   console.log("\n══════════════ ATTEMPT SUMMARY ══════════════");
   console.log(`  Strategy     : ${metric.strategy}`);
+  console.log(`  Config       : ${metric.configName ?? "untagged"}`);
   console.log(`  Outcome      : ${metric.outcome}`);
   console.log(`  Final score  : ${metric.finalScore ?? "N/A"}`);
   if (metric.wins !== undefined || metric.losses !== undefined) {
