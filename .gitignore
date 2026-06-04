@@ -1,5 +1,6 @@
 node_modules/
 dist/
+.env
 data/agent.json
 data/history.json
 data/metrics.json

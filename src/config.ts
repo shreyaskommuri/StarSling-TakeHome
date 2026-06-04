@@ -170,7 +170,7 @@ export const CONFIGS: Record<string, AgentConfig> = {
 };
 
 export function getAgentConfig(name?: string): AgentConfig {
-  return CONFIGS[name ?? "stable_713"] ?? STABLE_713;
+  return CONFIGS[name ?? "targeted_defense_v1"] ?? CONFIGS.targeted_defense_v1;
 }
 
 export const SHIP_LENGTHS: Record<ShipClass, number> = {

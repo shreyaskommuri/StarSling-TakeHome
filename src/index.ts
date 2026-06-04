@@ -23,7 +23,7 @@ function argValue(name: string): string | undefined {
 
 function parseArgs(): { mode: string; strategyName: string; configName: string } {
   const args = process.argv.slice(2);
-  const configName = argValue("--config") ?? "stable_713";
+  const configName = argValue("--config") ?? "targeted_defense_v1";
   if (args.includes("--rules")) return { mode: "rules", strategyName: "probability", configName };
   if (args.includes("--abandon")) return { mode: "abandon", strategyName: "probability", configName };
   if (args.includes("--stats")) return { mode: "stats", strategyName: "probability", configName };

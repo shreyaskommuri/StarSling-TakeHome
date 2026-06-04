@@ -108,6 +108,7 @@ After four opponent ships are sunk, the agent switches into a late-game final-sh
 
 ## Configs
 
+- Default: `targeted_defense_v1`, because it produced the final highest observed score: **771/1000**, **15W-0L**, **75/75 sunk**, **23 own ships lost**, **560 shots**
 - `stable_713`: safer rollback config preserving the best stable 15W-0L behavior
 - `targeted_defense_v1`: highest observed score config, but more volatile on reruns
 - `cycle_predict_v1`: tested but not promoted because cycle confidence was not reliable enough
