@@ -3,7 +3,7 @@
 ## Quick Reference
 
 - **Server**: `https://intern-battleship-game-server.vercel.app`
-- **Competition ID**: `OMITTED_COMPETITION_ID`
+- **Competition ID**: loaded from ignored `.env` as `COMPETITION_ID`
 - **Auth**: Agent Auth Protocol (OAuth device flow + signed JWTs) via `@auth/agent` SDK
 - **Credentials file**: `data/agent.json` — keypair + agentId, persisted via KVStorage
 - **History file**: `data/history.json` — per-opponent shot outcomes for self-improvement

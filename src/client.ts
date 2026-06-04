@@ -29,6 +29,7 @@
  *   GAME_COMPLETED       → { responseType, state, result, next }
  */
 import { AgentAuthClient } from "@auth/agent";
+import { existsSync, readFileSync } from "node:fs";
 import { mintToken } from "./auth.js";
 import {
   CompetitionRules,
@@ -44,7 +45,20 @@ import {
 } from "./types.js";
 
 const SERVER = "https://intern-battleship-game-server.vercel.app";
-const COMP_ID = "OMITTED_COMPETITION_ID";
+function readEnvValue(key: string): string | undefined {
+  if (process.env[key]) return process.env[key];
+  if (!existsSync(".env")) return undefined;
+
+  const line = readFileSync(".env", "utf8")
+    .split(/\r?\n/)
+    .find((entry) => entry.trim().startsWith(`${key}=`));
+  return line?.slice(line.indexOf("=") + 1).trim().replace(/^["']|["']$/g, "");
+}
+
+const COMP_ID = readEnvValue("COMPETITION_ID");
+if (!COMP_ID) {
+  throw new Error("Missing COMPETITION_ID. Set it in .env or the process environment.");
+}
 const BASE = `${SERVER}/competitions/${COMP_ID}`;
 
 // ─── Wire format types ─────────────────────────────────────────────────────────
