@@ -61,6 +61,31 @@ The research process was intentionally time-boxed and evidence-led. I used the e
 
 I did not blindly promote every high-scoring experiment. The 755 and 771 runs were valuable because they showed upside, but reruns exposed volatility. That led to a careful distinction between the highest observed configuration and the safer rollback profile.
 
+## Product Takeaway for StarSling
+
+I also looked at StarSling's public positioning while preparing the final deliverables. StarSling describes itself as self-driving CI: faster GitHub Actions runners plus AI agents that analyze workflows, run logs, and telemetry, then open optimization PRs for caching, dependency installs, build steps, tests, and workflow structure.
+
+This challenge surfaced a product lesson that seems directly relevant to that mission: autonomous engineering agents should not only optimize for success; they should optimize for trustworthy improvement.
+
+The Battleship agent had several high-upside strategies, but some were volatile. `targeted_defense_v1` produced the highest observed score, while `stable_713` remained the safer rollback. The strongest workflow was not "make the cleverest change." It was:
+
+1. Measure the current behavior.
+2. Change one thing.
+3. Compare against a rollback profile.
+4. Check reliability, variance, and secondary metrics.
+5. Promote only when the evidence supports it.
+
+For a self-driving CI product, the same pattern suggests high-value reviewer and user-facing features:
+
+- Regression gates before promoting an autonomous fix.
+- Confidence scores before editing workflow files, changing dependencies, or opening PRs.
+- Last-known-good rollback states for workflows, dependency sets, and agent policies.
+- Observability traces that explain what failed, what the agent inspected, what it changed, and what validated the fix.
+- Memory of rejected fix attempts so the agent does not repeat strategies that already failed.
+- Multi-run validation for flaky or high-variance CI failures.
+
+I would frame this as an opportunity rather than a critique: StarSling already targets the right problem space, and this project reinforced how important promotion criteria, rollback safety, and explainability become once agents are allowed to improve engineering systems on their own.
+
 ## How To Run
 
 Create an ignored `.env` file with the competition id:

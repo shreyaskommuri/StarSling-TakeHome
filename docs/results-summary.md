@@ -26,6 +26,12 @@ That shift led to targeted defensive placement, conservative learned-mode guardr
 
 `targeted_defense_v1` produced the highest observed score, but it was volatile on reruns. `stable_713` was kept as the safer rollback profile. The final README and devlog call this out directly rather than presenting the 771 as a stability guarantee.
 
+## StarSling-Relevant Takeaway
+
+The broader product lesson is that autonomous agents need promotion criteria, not just action-taking ability. In this project, the best result came from combining upside-seeking experiments with rollback configs, regression gates, confidence checks, and observability.
+
+That maps directly to self-driving CI: an agent that opens workflow optimization PRs should be able to explain why the change is trustworthy, what evidence validated it, what risks remain, and when it should roll back instead of promoting a volatile improvement.
+
 ## Evidence Trail
 
 - `DEVLOG.md` records the score progression from 279 to 771.
