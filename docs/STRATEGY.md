@@ -79,9 +79,9 @@ Fires a uniformly random untried cell. Exists as a control arm.
 
 Expected performance: ~50-60 shots/game (equivalent to random search over 100 cells for 17 targets).
 
-Use: `npx ts-node src/index.ts --strategy=baseline`
+Use: `npx tsx src/index.ts --strategy=baseline`
 
-Then compare: `npx ts-node src/index.ts --stats`
+Then compare: `npx tsx src/index.ts --stats`
 
 ---
 
@@ -100,7 +100,7 @@ Then compare: `npx ts-node src/index.ts --stats`
    ```
 3. Export from `src/strategies/index.ts`
 4. Register in `src/index.ts` STRATEGIES map
-5. Run: `npx ts-node src/index.ts --strategy=yourname`
+5. Run: `npx tsx src/index.ts --strategy=yourname`
 
 ---
 
@@ -108,13 +108,13 @@ Then compare: `npx ts-node src/index.ts --stats`
 
 Before changing strategy:
 ```bash
-npx ts-node src/index.ts --stats
+npx tsx src/index.ts --stats
 # note: avgShotsPerGame, avgAccuracy, finalScore
 ```
 
 After changing and running:
 ```bash
-npx ts-node src/index.ts --stats
+npx tsx src/index.ts --stats
 # compare delta
 ```
 

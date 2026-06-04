@@ -86,7 +86,7 @@ Each decision here follows the format: **Decision → Reason → Tradeoffs → F
 
 ## --stats Skips Auth
 
-**Decision**: `npx ts-node src/index.ts --stats` reads `data/metrics.json` locally without calling `initAuth()`.
+**Decision**: `npx tsx src/index.ts --stats` reads `data/metrics.json` locally without calling `initAuth()`.
 
 **Reason**: Reading local files doesn't need a network round-trip or token minting. Faster, and works offline.
 

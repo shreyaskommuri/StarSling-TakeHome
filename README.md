@@ -63,9 +63,7 @@ I did not blindly promote every high-scoring experiment. The 755 and 771 runs we
 
 ## Product Takeaway for StarSling
 
-I also looked at StarSling's public positioning while preparing the final deliverables. StarSling describes itself as self-driving CI: faster GitHub Actions runners plus AI agents that analyze workflows, run logs, and telemetry, then open optimization PRs for caching, dependency installs, build steps, tests, and workflow structure.
-
-This challenge surfaced a product lesson that seems directly relevant to that mission: autonomous engineering agents should not only optimize for success; they should optimize for trustworthy improvement.
+Based on the take-home framing and StarSling's public focus on self-driving CI, this challenge surfaced a product lesson that seems directly relevant to that mission: autonomous engineering agents should not only optimize for success; they should optimize for trustworthy improvement.
 
 The Battleship agent had several high-upside strategies, but some were volatile. `targeted_defense_v1` produced the highest observed score, while `stable_713` remained the safer rollback. The strongest workflow was not "make the cleverest change." It was:
 
@@ -94,6 +92,8 @@ Create an ignored `.env` file with the competition id:
 COMPETITION_ID=...
 ```
 
+You can copy the shape from `.env.example`; keep the real value in `.env`, which is gitignored.
+
 Then install and run:
 
 ```bash
@@ -109,6 +109,8 @@ npx tsx src/index.ts --report=best
 npx tsx src/index.ts --configs
 npx tsx src/index.ts --config=stable_713
 ```
+
+Note: the live gameplay window may be closed by the time this repo is reviewed. The code remains runnable, but live attempts require an active competition window and valid Agent Auth approval.
 
 ## Architecture
 

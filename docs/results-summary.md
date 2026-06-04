@@ -35,5 +35,6 @@ That maps directly to self-driving CI: an agent that opens workflow optimization
 ## Evidence Trail
 
 - `DEVLOG.md` records the score progression from 279 to 771.
-- `npx tsx src/index.ts --report=best` reports the 771 attempt locally from recorded metrics.
-- `npx tsx src/index.ts --stats` prints the full attempt history.
+- The final high-water result was recorded as: 771/1000, 15W-0L, 75/75 ships sunk, 23 own ships lost, 560 shots.
+- Runtime metrics and logs are intentionally gitignored because they include local attempt history and agent state.
+- When run locally during the challenge window, `npx tsx src/index.ts --stats` and `npx tsx src/index.ts --report=best` read from local metrics.

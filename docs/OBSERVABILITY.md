@@ -56,7 +56,7 @@ A high ratio of `learned` shots in attempt 2+ indicates the self-improvement loo
 Append-only array of `AttemptMetric` objects. Read with:
 
 ```bash
-npx ts-node src/index.ts --stats
+npx tsx src/index.ts --stats
 ```
 
 Each entry:
@@ -90,7 +90,7 @@ Each entry:
 ### Comparing strategies
 
 ```bash
-# After running both: npx ts-node src/index.ts --stats
+# After running both: npx tsx src/index.ts --stats
 # Look for strategy= field per line
 ```
 
