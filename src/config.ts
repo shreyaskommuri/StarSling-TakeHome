@@ -19,6 +19,7 @@ export interface TargetedDefenseConfig {
   dangerWeight: number;
   spacingAdjacentPenalty: number;
   spacingDistanceTwoPenalty: number;
+  safePlacement?: boolean;
 }
 
 export interface CyclePredictionConfig {
@@ -80,6 +81,35 @@ export const CONFIGS: Record<string, AgentConfig> = {
       dangerWeight: 0.35,
       spacingAdjacentPenalty: 4,
       spacingDistanceTwoPenalty: 1,
+    },
+  },
+  targeted_defense_quick_abandon: {
+    ...STABLE_713,
+    name: "targeted_defense_quick_abandon",
+    learned: {
+      ...STABLE_713.learned,
+      openingMissAbandon: 2,
+    },
+    targetedDefense: {
+      enabled: true,
+      opponents: ["vega-marauder", "polaris-warship", "sirius-dreadnought", "centauri-battlecruiser"],
+      minRecords: 10,
+      dangerWeight: 0.35,
+      spacingAdjacentPenalty: 4,
+      spacingDistanceTwoPenalty: 1,
+    },
+  },
+  targeted_defense_safe: {
+    ...STABLE_713,
+    name: "targeted_defense_safe",
+    targetedDefense: {
+      enabled: true,
+      opponents: ["vega-marauder", "polaris-warship", "sirius-dreadnought", "centauri-battlecruiser"],
+      minRecords: 3,
+      dangerWeight: 0.35,
+      spacingAdjacentPenalty: 4,
+      spacingDistanceTwoPenalty: 1,
+      safePlacement: true,
     },
   },
   targeted_defense_v2: {
